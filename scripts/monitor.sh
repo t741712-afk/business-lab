@@ -253,8 +253,21 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
 }
 EOF
 
-# --- Arranque de contenedores ----------------------------------------------
+# --- Certificado autofirmado para HTTPS (no hay dominio: CN = IP publica) ---
+mkdir -p /opt/mon/grafana/certs
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+PUBIP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+[ -z "$PUBIP" ] && PUBIP=monitor.corp.local
+openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+  -keyout /opt/mon/grafana/certs/grafana.key \
+  -out    /opt/mon/grafana/certs/grafana.crt \
+  -subj "/CN=${PUBIP}" -addext "subjectAltName=IP:${PUBIP}"
+chmod 644 /opt/mon/grafana/certs/grafana.key /opt/mon/grafana/certs/grafana.crt
+
+# --- Arranque de contenedores (idempotente: rm -f por si se re-ejecuta) -----
 docker network create mon 2>/dev/null || true
+docker rm -f blackbox prometheus grafana 2>/dev/null || true
+
 docker run -d --restart unless-stopped --name blackbox --network mon \
   --cap-add NET_RAW \
   -v /opt/mon/blackbox:/config \
@@ -264,11 +277,16 @@ docker run -d --restart unless-stopped --name prometheus --network mon -p 9090:9
   -v /opt/mon/prometheus:/etc/prometheus \
   prom/prometheus:latest
 
-docker run -d --restart unless-stopped --name grafana --network mon -p 3000:3000 \
+# Grafana sirve HTTPS en el 443 del host -> 3000 del contenedor (TLS lo termina Grafana).
+docker run -d --restart unless-stopped --name grafana --network mon -p 443:3000 \
   -e GF_SECURITY_ADMIN_PASSWORD="${GF_PASS}" \
   -e GF_USERS_ALLOW_SIGN_UP=false \
+  -e GF_SERVER_PROTOCOL=https \
+  -e GF_SERVER_CERT_FILE=/etc/grafana/certs/grafana.crt \
+  -e GF_SERVER_CERT_KEY=/etc/grafana/certs/grafana.key \
+  -v /opt/mon/grafana/certs:/etc/grafana/certs \
   -v /opt/mon/grafana/provisioning:/etc/grafana/provisioning \
   -v /opt/mon/grafana/dashboards:/var/lib/grafana/dashboards \
   grafana/grafana:latest
 
-echo "monitor ready - Grafana :3000 (admin/${GF_PASS}) · Prometheus :9090" > /var/log/prov.done
+echo "monitor ready - Grafana https://${PUBIP}/ (443, admin/${GF_PASS}) · Prometheus :9090 (interno)" > /var/log/prov.done

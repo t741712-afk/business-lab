@@ -5,6 +5,7 @@ param(
 Start-Transcript -Path C:\prov.log -Append
 try {
   net user Administrator $AdminPassword
+  Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el monitor
   Install-WindowsFeature -Name Web-Server,Web-Asp-Net45 -IncludeManagementTools
   $html = @"
 <!doctype html><html><head><meta charset='utf-8'><title>IIS Corp</title>

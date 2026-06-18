@@ -7,6 +7,7 @@ param(
 # este disponible y se promociona como controlador adicional.
 Start-Transcript -Path C:\prov.log -Append
 net user Administrator $AdminPassword
+Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el monitor
 
 # DNS -> DC1
 $if = Get-NetAdapter | Where-Object Status -eq Up | Select-Object -First 1

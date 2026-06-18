@@ -6,6 +6,7 @@ param(
 # File server Windows: une al dominio, crea shares SMB de ejemplo.
 Start-Transcript -Path C:\prov.log -Append
 net user Administrator $AdminPassword
+Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el monitor
 $if = Get-NetAdapter | Where-Object Status -eq Up | Select-Object -First 1
 Set-DnsClientServerAddress -InterfaceIndex $if.ifIndex -ServerAddresses $DcIp
 

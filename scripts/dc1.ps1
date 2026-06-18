@@ -7,6 +7,7 @@ param(
 Start-Transcript -Path C:\prov.log -Append
 $sec = ConvertTo-SecureString $AdminPassword -AsPlainText -Force
 net user Administrator $AdminPassword
+Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el monitor
 
 Install-WindowsFeature AD-Domain-Services,DNS -IncludeManagementTools
 

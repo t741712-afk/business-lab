@@ -38,10 +38,10 @@ servicios de **las 31 máquinas** y muestra si están **levantados**:
 
 `probe_success==1` = servicio ARRIBA; `==0` = CAÍDO (alerta `ServicioCaido` en Prometheus tras 1 min).
 
-- **Grafana:** `http://<MonitorIp>:3000` (admin / `GrafanaPassword`) → dashboard *Business-Lab · Estado de servicios*.
-- **Prometheus:** `http://<MonitorIp>:9090` (pestaña *Targets* y *Alerts*).
-- Puertos 3000/9090 abiertos solo a tu `AllowedAdminCidr`. El monitor alcanza todas las
-  subredes por tráfico intra-VPC (no necesita reglas extra).
+- **Grafana:** `https://<MonitorIp>/` (**HTTPS en el 443**, cert autofirmado → el navegador
+  avisará, acepta y continúa). Usuario `admin` / `GrafanaPassword`. Dashboard *Business-Lab · Estado de servicios*.
+- **Prometheus:** `http://<MonitorIp>:9090` (solo desde `AllowedAdminCidr`; uso interno como datasource).
+- El 443 está abierto en `DmzSg`; el monitor alcanza todas las subredes por tráfico intra-VPC.
 
 ## Provisioning (UserData → GitHub)
 

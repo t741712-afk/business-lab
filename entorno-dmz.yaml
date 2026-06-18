@@ -332,6 +332,7 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
+          # monitor provisioning v2 (Grafana HTTPS en 443)
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/monitor.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; GF_PASS="${GrafanaPassword}" bash /tmp/p.sh
@@ -375,7 +376,8 @@ Outputs:
     Description: IP publica del host de monitorizacion.
     Value: !GetAtt Monitor.PublicIp
   GrafanaUrl:
-    Description: Dashboard de estado de servicios (admin / GrafanaPassword).
-    Value: !Sub "http://${Monitor.PublicIp}:3000"
+    Description: Dashboard de estado de servicios (HTTPS/443, admin / GrafanaPassword). Cert autofirmado.
+    Value: !Sub "https://${Monitor.PublicIp}/"
   PrometheusUrl:
+    Description: Prometheus (puerto 9090, solo accesible desde AllowedAdminCidr).
     Value: !Sub "http://${Monitor.PublicIp}:9090"
