@@ -214,39 +214,89 @@ providers:
       path: /var/lib/grafana/dashboards
 EOF
 
-# --- Grafana: dashboard "Estado de servicios" -------------------------------
+# --- Grafana: dashboard "Disponibilidad y tiempo caido" ---------------------
+# Las consultas usan $__range / $__range_s -> se adaptan al rango temporal que
+# elijas arriba a la derecha (Last 6h, 24h, 7d...).
 cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
 {
-  "title": "Business-Lab · Estado de servicios",
+  "title": "Business-Lab · Disponibilidad y tiempo caído",
   "uid": "biz-lab-status",
   "schemaVersion": 39,
   "refresh": "30s",
-  "time": { "from": "now-6h", "to": "now" },
+  "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
-      "type": "stat", "title": "Servicios ARRIBA", "id": 1,
+      "type": "stat", "title": "Servicios ARRIBA ahora", "id": 1,
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [ { "expr": "sum(probe_success)", "refId": "A" } ]
     },
     {
-      "type": "stat", "title": "Servicios CAIDOS", "id": 2,
+      "type": "stat", "title": "Servicios CAÍDOS ahora", "id": 2,
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" },
         "thresholds": { "steps": [ {"color":"green","value":null}, {"color":"red","value":1} ] } } },
       "targets": [ { "expr": "count(probe_success == 0) or vector(0)", "refId": "A" } ]
     },
     {
-      "type": "table", "title": "Detalle por servicio", "id": 3,
-      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 4 },
+      "type": "stat", "title": "Tiempo caído TOTAL en el rango (servicios reales, sin ping Windows)", "id": 3,
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "targets": [ { "expr": "sum((1 - avg_over_time(probe_success{job!=\"icmp\"}[$__range])) * $__range_s)", "refId": "A" } ]
+    },
+    {
+      "type": "table", "title": "Tiempo acumulado CAÍDO y disponibilidad por servicio (rango seleccionado)", "id": 4,
+      "gridPos": { "h": 13, "w": 24, "x": 0, "y": 4 },
+      "options": { "sortBy": [ { "displayName": "Caído (acumulado)", "desc": true } ] },
+      "targets": [
+        { "expr": "(1 - avg_over_time(probe_success[$__range])) * $__range_s", "format": "table", "instant": true, "refId": "DOWN" },
+        { "expr": "avg_over_time(probe_success[$__range]) * 100", "format": "table", "instant": true, "refId": "UP" }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "__name__": true },
+            "renameByName": { "instance": "Servicio", "job": "Sonda", "Value #DOWN": "Caído (acumulado)", "Value #UP": "Uptime %" }
+        } }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Caído (acumulado)" },
+            "properties": [ { "id": "unit", "value": "s" },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"orange","value":1}, {"color":"red","value":300} ] } } ] },
+          { "matcher": { "id": "byName", "options": "Uptime %" },
+            "properties": [ { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [ {"color":"red","value":null}, {"color":"yellow","value":99}, {"color":"green","value":99.9} ] } } ] }
+        ]
+      }
+    },
+    {
+      "type": "state-timeline", "title": "Línea de tiempo (verde=arriba · rojo=caído)", "id": 5,
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 17 },
+      "options": { "mergeValues": true, "showValue": "never", "rowHeight": 0.9,
+        "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": { "defaults": {
+        "color": { "mode": "thresholds" },
+        "mappings": [ { "type": "value", "options": {
+          "0": { "text": "CAÍDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ],
+        "thresholds": { "mode": "absolute", "steps": [ {"color":"red","value":null}, {"color":"green","value":1} ] },
+        "custom": { "fillOpacity": 80, "lineWidth": 0 } } },
+      "targets": [ { "expr": "probe_success", "legendFormat": "{{instance}}", "refId": "A" } ]
+    },
+    {
+      "type": "table", "title": "Estado actual por servicio", "id": 6,
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 31 },
       "transformations": [
         { "id": "labelsToFields", "options": {} },
-        { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": false } } }
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true } } }
       ],
-      "fieldConfig": { "defaults": { "mappings": [
-        { "type": "value", "options": { "0": { "text": "CAIDO",  "color": "red"   },
-                                        "1": { "text": "ARRIBA", "color": "green" } } } ],
-        "custom": { "displayMode": "color-background" } } },
+      "fieldConfig": { "defaults": {
+        "custom": { "filterable": true, "cellOptions": { "type": "color-background" } },
+        "mappings": [ { "type": "value", "options": {
+          "0": { "text": "CAÍDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ] } },
       "targets": [ { "expr": "probe_success", "format": "table", "instant": true, "refId": "A" } ]
     }
   ]
