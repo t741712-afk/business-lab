@@ -1,0 +1,381 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Business-Lab  ·  STACK 1/2  ·  DMZ (perimetro publico) + RED BASE.
+  Crea la VPC, subred publica, IGW, NAT y los frontales web. EXPORTA la red
+  para que el stack MZ (interno) la importe.
+  ADAPTADO A LAS RESTRICCIONES SCP DE PX (Trend Micro):
+    * Region unica: us-east-1
+    * Tipos permitidos: t2/t3 hasta xlarge + c5.2xlarge. SIN GPU, sin m5.
+    * AWS Marketplace bloqueado -> AMIs estandar via SSM Public Parameters.
+    * IAM write bloqueado -> NO se crean IAM Roles. Acceso por KeyPair/SSH/RDP.
+    * IMDSv2 obligatorio y cifrado EBS en todas las instancias.
+  Provisioning: cada UserData es minimo y descarga su script real del repo
+  GitHub (parametro ScriptBaseUrl) y lo ejecuta.
+
+# ---------------------------------------------------------------------------
+Parameters:
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: corp-lab
+    Description: KeyPair existente en us-east-1 (acceso SSH/RDP, no hay IAM role).
+
+  AllowedAdminCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    ConstraintDescription: CIDR valido, ej. 1.2.3.4/32
+    Description: Tu IP /32 para SSH(22)/RDP(3389) al bastion. CAMBIALO.
+
+  ScriptBaseUrl:
+    Type: String
+    Default: https://raw.githubusercontent.com/t741712-afk/business-lab/main/scripts
+    Description: URL raw del repo con los scripts de provisioning.
+
+  DomainName:
+    Type: String
+    Default: corp.local
+    Description: Dominio AD interno (lo levanta el stack MZ).
+
+  WindowsAdminPassword:
+    Type: String
+    Default: BusinessLab#2026
+    NoEcho: true
+    Description: Password local de Administrator en las maquinas Windows.
+
+  GrafanaPassword:
+    Type: String
+    Default: Monitor#2026
+    NoEcho: true
+    Description: Password de admin de Grafana en el host de monitorizacion.
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnetCidr:
+    Type: String
+    Default: 10.0.0.0/24
+
+  AZ:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+
+  AmiAmazonLinux:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  AmiUbuntu:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+
+  AmiWindows:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+
+# ---------------------------------------------------------------------------
+Resources:
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: business-lab-vpc }]
+
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: business-lab-igw }]
+
+  IgwAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Igw
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PublicSubnetCidr
+      AvailabilityZone: !Ref AZ
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: dmz-public }]
+
+  PublicRt:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: dmz-public-rt }]
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttach
+    Properties:
+      RouteTableId: !Ref PublicRt
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+
+  PublicRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRt
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGw:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnet
+      Tags: [{ Key: Name, Value: business-lab-nat }]
+
+  # Route table privada compartida: el stack MZ asocia aqui sus subredes.
+  PrivateRt:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: mz-private-rt }]
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRt
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGw
+
+  # --- Security Groups -----------------------------------------------------
+  DmzSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DMZ - web publico + admin restringido
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80,   ToPort: 80,   CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443,  ToPort: 443,  CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 22,   ToPort: 22,   CidrIp: !Ref AllowedAdminCidr }
+        - { IpProtocol: tcp, FromPort: 3389, ToPort: 3389, CidrIp: !Ref AllowedAdminCidr }
+        - { IpProtocol: tcp, FromPort: 3000, ToPort: 3000, CidrIp: !Ref AllowedAdminCidr }  # Grafana
+        - { IpProtocol: tcp, FromPort: 9090, ToPort: 9090, CidrIp: !Ref AllowedAdminCidr }  # Prometheus
+        - { IpProtocol: -1, CidrIp: !Ref VpcCidr }   # intra-VPC libre (lab)
+      Tags: [{ Key: Name, Value: dmz-sg }]
+
+  # --- Bastion -------------------------------------------------------------
+  Bastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.10
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: bastion }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/bastion.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; DOMAIN="${DomainName}" bash /tmp/p.sh
+
+  # --- Load Balancer (HAProxy/Nginx) --------------------------------------
+  LoadBalancer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.20
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: loadbalancer }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/haproxy-lb.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # --- Web 1 Nginx (Ubuntu) -----------------------------------------------
+  WebNginx1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.31
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: web-nginx-1 }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-nginx.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; SITE=corp-portal bash /tmp/p.sh
+
+  # --- Web 2 Nginx + WordPress (Ubuntu) -----------------------------------
+  WebNginx2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.32
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: 25, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: web-nginx-2-wordpress }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-wordpress.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # --- Web 3 Apache + PHP (Amazon Linux) ----------------------------------
+  WebApache:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.33
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: web-apache-php }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-apache-php.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # --- Web 4 IIS (Windows) ------------------------------------------------
+  WebIis:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.34
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: web-iis }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/web-iis.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  # --- Monitor: Prometheus + Blackbox + Grafana ---------------------------
+  Monitor:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.40
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: monitor }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/monitor.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; GF_PASS="${GrafanaPassword}" bash /tmp/p.sh
+
+# ---------------------------------------------------------------------------
+Outputs:
+
+  VpcId:
+    Value: !Ref Vpc
+    Export: { Name: business-lab-VpcId }
+
+  VpcCidr:
+    Value: !Ref VpcCidr
+    Export: { Name: business-lab-VpcCidr }
+
+  PrivateRouteTableId:
+    Description: Route table privada (NAT) que asocia el stack MZ.
+    Value: !Ref PrivateRt
+    Export: { Name: business-lab-PrivateRtId }
+
+  PublicSubnetId:
+    Value: !Ref PublicSubnet
+    Export: { Name: business-lab-PublicSubnetId }
+
+  BastionIp:
+    Description: IP publica del bastion (punto de entrada SSH/RDP).
+    Value: !GetAtt Bastion.PublicIp
+
+  WebNginx1Ip:
+    Value: !GetAtt WebNginx1.PublicIp
+  WordpressIp:
+    Value: !GetAtt WebNginx2.PublicIp
+  WebApacheIp:
+    Value: !GetAtt WebApache.PublicIp
+  WebIisIp:
+    Value: !GetAtt WebIis.PublicIp
+  LoadBalancerIp:
+    Value: !GetAtt LoadBalancer.PublicIp
+
+  MonitorIp:
+    Description: IP publica del host de monitorizacion.
+    Value: !GetAtt Monitor.PublicIp
+  GrafanaUrl:
+    Description: Dashboard de estado de servicios (admin / GrafanaPassword).
+    Value: !Sub "http://${Monitor.PublicIp}:3000"
+  PrometheusUrl:
+    Value: !Sub "http://${Monitor.PublicIp}:9090"
