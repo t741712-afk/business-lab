@@ -1,6 +1,6 @@
 param(
-    [string]\$DomainName = "corp.local",
-    [string]\$AdminPassword = "BusinessLab#2026"
+    [string]\$DomainName,
+    [string]\$AdminPassword
 )
 
 \$ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ try {
     Write-Host "==> Preparando directorio C:\Scripts..."
     New-Item -Path "C:\Scripts" -ItemType Directory -Force | Out-Null
 
-    # --- INICIO DEL SCRIPT POST-REBOOT ---
+    # --- INICIO DEL SCRIPT POST-REBOOT (Aquí usamos marcadores de texto para no romper variables) ---
     \(post = @'\)ErrorActionPreference = "Stop"
 
 Start-Transcript -Path "C:\prov.log" -Append
@@ -112,9 +112,8 @@ try {
 
     Write-Host "==> Descargando vulnerable-AD..."
     \$vulnPath = "C:\Scripts\vulnad.ps1"
-    \$vulnScriptUrl = "https://raw.githubusercontent.com/safebuffer/vulnerable-AD/master/vulnad.ps1"
+    \$vulnScriptUrl = "https://raw.githubusercontent.com/safebuffer/vulnerable-AD/refs/heads/master/vulnad.ps1"
 
-    # Asegurar TLS 1.2 antes de la descarga
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri vulnScriptUrl -OutFile vulnPath -UseBasicParsing
 
@@ -127,7 +126,6 @@ try {
     Write-Host "    SHA256: (hash.Hash)"
 
     Write-Host "==> Cargando e invocando vulnerable-AD..."
-    # Forzar la importación del script como módulo para exponer Invoke-VulnAD de forma limpia
     Import-Module \$vulnPath -Force
 
     if (-not (Get-Command Invoke-VulnAD -ErrorAction SilentlyContinue)) {
@@ -171,7 +169,7 @@ finally {
 '@
     # --- FIN DEL SCRIPT POST-REBOOT ---
 
-    # Reemplazar dinámicamente la contraseña dentro de la cadena antes de escribir el archivo
+    # Reemplazo de marcadores seguro controlado por el script raíz
     \$post = \(post.Replace("__ADMINPASS__", \)AdminPassword)
 
     Write-Host "==> Escribiendo script PostDcSetup..."
