@@ -8,7 +8,7 @@ cat > /etc/dnsmasq.d/corp.conf <<'EOF'
 domain-needed
 bogus-priv
 bind-interfaces
-listen-address=0.0.0.0,127.0.0.1
+listen-address=10.0.5.11,127.0.0.1
 # Reenvio del dominio interno al DC, el resto a AWS
 server=/corp.local/10.0.3.10
 server=169.254.169.253
