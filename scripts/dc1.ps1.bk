@@ -2,9 +2,8 @@ param(
   [string]$DomainName = "corp.local",
   [string]$AdminPassword = "BusinessLab#2026"
 )
-
 # DC1 - Promociona a bosque AD nuevo + DNS. Tras el reboot, una tarea programada
-# crea OUs, usuarios de ejemplo y despliega el laboratorio vulnerable de safebuffer.
+# crea OUs, usuarios de ejemplo y el usuario 'DomainJoin' (para que el resto se una).
 Start-Transcript -Path C:\prov.log -Append
 $sec = ConvertTo-SecureString $AdminPassword -AsPlainText -Force
 net user Administrator $AdminPassword
@@ -12,95 +11,44 @@ Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el mon
 
 Install-WindowsFeature AD-Domain-Services,DNS -IncludeManagementTools
 
-# Script post-reboot (crea estructura del dominio y aplica vulnerabilidades una sola vez)
+# Script post-reboot (crea estructura del dominio una sola vez)
 New-Item -Path C:\Scripts -ItemType Directory -Force | Out-Null
 $post = @'
 Start-Sleep -Seconds 60
 $pass = ConvertTo-SecureString "__ADMINPASS__" -AsPlainText -Force
-
-# Reenvio DNS a AWS para que la red resuelva internet y descargue de GitHub
+# Reenvio DNS a AWS para que la red resuelva internet
 Add-DnsServerForwarder -IPAddress 169.254.169.253 -ErrorAction SilentlyContinue
-
-# OUs base
+# OUs
 foreach($ou in "Corp","Servers","Workstations","Service"){
   if(-not (Get-ADOrganizationalUnit -Filter "Name -eq '$ou'" -ErrorAction SilentlyContinue)){
     New-ADOrganizationalUnit -Name $ou -ProtectedFromAccidentalDeletion $false
   }
 }
-
 # Usuario para unir maquinas al dominio
 if(-not (Get-ADUser -Filter "SamAccountName -eq 'DomainJoin'" -ErrorAction SilentlyContinue)){
   New-ADUser -Name DomainJoin -SamAccountName DomainJoin -AccountPassword $pass -Enabled $true -PasswordNeverExpires $true
   Add-ADGroupMember -Identity "Domain Admins" -Members DomainJoin
 }
-
 # Usuarios de ejemplo
 foreach($u in "jgarcia","mlopez","afernandez","ops-svc"){
   if(-not (Get-ADUser -Filter "SamAccountName -eq '$u'" -ErrorAction SilentlyContinue)){
     New-ADUser -Name $u -SamAccountName $u -AccountPassword $pass -Enabled $true -PasswordNeverExpires $true -Path "OU=Corp,$((Get-ADDomain).DistinguishedName)"
   }
 }
-
 # Grupo de TI
 if(-not (Get-ADGroup -Filter "Name -eq 'IT-Admins'" -ErrorAction SilentlyContinue)){
   New-ADGroup -Name IT-Admins -GroupScope Global -Path "OU=Corp,$((Get-ADDomain).DistinguishedName)"
   Add-ADGroupMember -Identity IT-Admins -Members jgarcia
 }
-
-# =========================================================================
-# INTEGRACIÓN: REPOSITORIO VULNERABLE-AD (safebuffer)
-# =========================================================================
-Write-Output "Iniciando descarga y despliegue de vulnerable-AD..."
-try {
-    # Forzar el uso de TLS 1.2 para conexiones seguras con GitHub
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    
-    # Omitir validación de certificados por si la hora del sistema tras el reboot no se ha sincronizado correctamente
-    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
-
-    # URL del script en crudo (raw)
-    $vulnScriptUrl = "https://github.com/safebuffer/vulnerable-AD/blob/master/vulnad.ps1"
-    
-    # Descargar el script y guardarlo en el disco
-    $tempPath = "C:\Scripts\vulnad.ps1"
-    Invoke-WebRequest -Uri $vulnScriptUrl -OutFile $tempPath -UseBasicParsing
-    
-    # Importar e invocar la función con los parámetros correspondientes
-    if (Test-Path $tempPath) {
-        Write-Output "Importando módulo e invocando Invoke-VulnAD..."
-        
-        # Importamos el archivo descargado como módulo
-        Import-Module $tempPath -Force
-        
-        # Ejecutamos la función pasando los usuarios requeridos y el dominio dinámico
-        Invoke-VulnAD -UsersLimit 150 -DomainName "__DOMAINNAME__"
-        
-        # Limpieza del script temporal para no dejar residuos
-        Remove-Item $tempPath -Force
-        Write-Output "vulnerable-AD desplegado con éxito."
-    } else {
-        Write-Error "No se pudo encontrar el archivo descargado en $tempPath"
-    }
-} catch {
-    Write-Error "Error crítico al descargar o ejecutar el entorno vulnerable: $_"
-}
-# =========================================================================
-
 "domain populated $(Get-Date)" | Out-File C:\prov.done
 Unregister-ScheduledTask -TaskName PostDcSetup -Confirm:$false
 '@
-
-# Reemplazamos los marcadores de posición con los parámetros reales pasados al script principal
 $post = $post.Replace("__ADMINPASS__",$AdminPassword)
-$post = $post.Replace("__DOMAINNAME__",$DomainName)
-
 Set-Content -Path C:\Scripts\PostDcSetup.ps1 -Value $post -Encoding ASCII -Force
-
-# Configuración de la Tarea Programada para ejecutarse como SYSTEM al arrancar
 $action  = New-ScheduledTaskAction -Execute PowerShell.exe -Argument "-ExecutionPolicy Bypass -File C:\Scripts\PostDcSetup.ps1"
 $trigger = New-ScheduledTaskTrigger -AtStartup
 Register-ScheduledTask -TaskName PostDcSetup -Action $action -Trigger $trigger -RunLevel Highest -User SYSTEM -Force
 
-# Promocion de Directorio Activo (Esta acción reiniciará el servidor automáticamente al terminar)
+# Promocion (reinicia la maquina al terminar)
 Install-ADDSForest -DomainName $DomainName -SafeModeAdministratorPassword $sec -InstallDNS -Force
 Stop-Transcript

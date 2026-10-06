@@ -1,4 +1,4 @@
-# Business-Lab — Entorno híbrido empresarial en AWS (~30 máquinas)
+# Business-Lab — Entorno híbrido empresarial en AWS
 
 Datacenter corporativo de laboratorio desplegable con **CloudFormation**, en **2 stacks**
 
