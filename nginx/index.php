@@ -45,6 +45,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
         }
     }
 }
+
+// DETALLE CRÍTICO DE RENDIMIENTO: Liberamos el bloqueo de sesión de PHP-FPM 
+// para que Nginx pueda realizar conexiones Proxy Inverso concurrentes sin sufrir un 504 Timeout.
+if (isset($_SESSION["authenticated"]) && $_SESSION["authenticated"] === true) {
+    session_write_close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
