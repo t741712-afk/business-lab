@@ -232,7 +232,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "targets": [ { "expr": "sum(probe_success)", "refId": "A" } ]
     },
     {
-      "type": "stat", "title": "Servicios CAÍDOS ahora", "id": 2,
+      "type": "stat", "title": "Servicios DOWN ahora", "id": 2,
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" },
         "thresholds": { "steps": [ {"color":"green","value":null}, {"color":"red","value":1} ] } } },
