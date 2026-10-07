@@ -1,5 +1,5 @@
 #!/bin/bash
-# Frontal web Nginx Corporativo (Ubuntu 22.04)
+# Frontal web Nginx + PHP-FPM + Autenticación Active Directory LDAP (Ubuntu 22.04)
 set -x
 set -e
 
@@ -8,40 +8,58 @@ export DEBIAN_FRONTEND=noninteractive
 # --- REPOSITORIO OFICIAL ---
 REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/heads/main/nginx"
 
-echo "==> Actualizando el sistema operativo..."
+echo "==> Actualizando índices de paquetes..."
 apt-get update -y
 
-echo "==> Instalando Nginx y dependencias de red..."
-apt-get install -y nginx curl
+echo "==> Instalando Nginx, PHP-FPM y extensión LDAP..."
+apt-get install -y nginx php-fpm php-ldap curl
 
-echo "==> Limpiando el directorio web raiz por defecto..."
+echo "==> Limpiando directorio web por defecto..."
 rm -rf /var/www/html/*
 
-echo "==> Descargando el panel corporativo y health endpoint desde GitHub..."
-# Forzamos la descarga en tiempo real saltando caches mediante un timestamp aleatorio
-curl -sS -L -o /var/www/html/index.html "${REPO_BASE_URL}/index.html?v=$(date +%s)"
+echo "==> Descargando el código con login LDAP integrado desde GitHub..."
+curl -sS -L -o /var/www/html/index.php "${REPO_BASE_URL}/index.php?v=$(date +%s)"
 curl -sS -L -o /var/www/html/health "${REPO_BASE_URL}/health?v=$(date +%s)"
 
-# --- CONTROL DE FALLAS (FALLBACK) ---
-if [ ! -s /var/www/html/index.html ]; then
-    echo "ERROR: Fallo al descargar de GitHub. Inyectando panel local de contingencia..."
-    cat > /var/www/html/index.html <<'EOF'
-<!doctype html>
-<html lang="en">
-<head><title>TAI Labs - Emergency Gateway</title></head>
-<body style="font-family:sans-serif; background:#090D16; color:white; text-align:center; padding-top:10%;">
-    <h1>LABORATORIES CORPORATION TAI</h1>
-    <p>Operations Gateway - Emergency Contingency Mode Active.</p>
-</body>
-</html>
-EOF
-fi
+echo "==> Configurando Nginx para procesar PHP a través de PHP-FPM..."
+cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
 
-echo "==> Configurando permisos correctos para Nginx (www-data)..."
+    root /var/www/html;
+    index index.php index.html index.htm;
+
+    server_name _;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Pasar los scripts PHP al servidor FastCGI enlazado con PHP-FPM
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+
+echo "==> Detectando versión de PHP activa para enlazar el socket..."
+PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+ln -sf /var/run/php/php${PHP_VER}-fpm.sock /var/run/php/php-fpm.sock
+
+echo "==> Ajustando permisos de la carpeta web para el usuario de Nginx..."
 chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
 
-echo "==> Iniciando y habilitando Nginx..."
-systemctl enable --now nginx
+echo "==> Reiniciando y habilitando servicios..."
+systemctl restart php${PHP_VER}-fpm
+systemctl enable php${PHP_VER}-fpm
+systemctl restart nginx
+systemctl enable nginx
 
-echo "nginx corporate ready" > /var/log/prov.done
+echo "nginx-ldap ready" > /var/log/prov.done
