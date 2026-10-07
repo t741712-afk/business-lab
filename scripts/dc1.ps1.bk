@@ -52,3 +52,5 @@ Register-ScheduledTask -TaskName PostDcSetup -Action $action -Trigger $trigger -
 # Promocion (reinicia la maquina al terminar)
 Install-ADDSForest -DomainName $DomainName -SafeModeAdministratorPassword $sec -InstallDNS -Force
 Stop-Transcript
+
+# https://raw.githubusercontent.com/safebuffer/vulnerable-AD/refs/heads/master/vulnad.ps1
