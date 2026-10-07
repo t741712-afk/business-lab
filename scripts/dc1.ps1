@@ -1,6 +1,6 @@
 param(
-    [string]\$DomainName,
-    [string]\$AdminPassword
+  [string]$DomainName = "corp.local",
+  [string]$AdminPassword = "BusinessLab#2026"
 )
 
 \$ErrorActionPreference = "Stop"
