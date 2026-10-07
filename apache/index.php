@@ -1,122 +1,246 @@
 <?php
-// index.php
+// index.php - Laboratories Corporation TAI (Biomedicina & IA)
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laboratories Corporation TAI | Innovación Tecnológica</title>
+    <title>Laboratories Corporation TAI | Advanced Biomedicine & AI</title>
     <style>
         :root {
-            --primary: #0F172A;
-            --accent: #2563EB;
-            --text: #334155;
-            --light: #F8FAFC;
+            --bg-dark: #0B0F19;
+            --card-bg: #111827;
+            --accent-blue: #3B82F6;
+            --accent-cyan: #06B6D4;
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
         }
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             margin: 0;
             padding: 0;
-            color: var(--text);
-            background-color: var(--light);
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
         }
         header {
-            background-color: var(--primary);
-            color: white;
-            padding: 1.5rem 2rem;
+            background-color: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(12px);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid #1F2937;
+            box-sizing: border-box;
+        }
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.2rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
         header h1 {
             margin: 0;
-            font-size: 1.5rem;
-            letter-spacing: 1px;
-            color: #E2E8F0;
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            background: linear-gradient(to right, #FFF, var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        header h1 span { color: var(--accent); }
+        header h1 span {
+            background: linear-gradient(to right, var(--accent-blue), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
         .hero {
+            padding: 10rem 2rem 6rem;
+            background: radial-gradient(circle at top right, rgba(6, 182, 212, 0.15), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.1), transparent 50%);
             text-align: center;
-            padding: 5rem 2rem;
-            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
-            color: white;
         }
-        .hero h2 { font-size: 3rem; margin-bottom: 1rem; }
-        .hero p { font-size: 1.25rem; color: #94A3B8; max-width: 600px; margin: 0 auto 2rem; }
-        .btn {
-            background-color: var(--accent);
-            color: white;
-            padding: 0.75rem 1.5rem;
-            text-decoration: none;
-            border-radius: 0.375rem;
+        .badge {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60A5FA;
+            padding: 0.4rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.85rem;
             font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.5px;
         }
-        .container { max-width: 1200px; margin: 3rem auto; padding: 0 2rem; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
-        .card { background: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgb(0 0 0 / 0.1); }
-        .card h3 { color: var(--primary); margin-top: 0; }
+        .hero h2 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin: 0 auto 1.5rem;
+            max-width: 900px;
+            line-height: 1.15;
+            letter-spacing: -1px;
+        }
+        .hero h2 em {
+            font-style: normal;
+            background: linear-gradient(to right, #22D3EE, #3B82F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto 2.5rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 3rem;
+            font-weight: 700;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid #1F2937;
+            padding: 2.5rem;
+            border-radius: 0.75rem;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(6, 182, 212, 0.4);
+        }
+        .card h3 {
+            color: #FFF;
+            font-size: 1.4rem;
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.975rem;
+            margin: 0;
+        }
+        .info-hq {
+            background: linear-gradient(135deg, #111827 0%, #0F172A 100%);
+            border: 1px solid #1F2937;
+            border-radius: 0.75rem;
+            padding: 3rem;
+            margin-top: 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+        .hq-text h3 { margin: 0 0 0.5rem; font-size: 1.7rem; }
+        .hq-text p { margin: 0; color: var(--text-muted); }
+        .hq-location {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid var(--accent-cyan);
+        }
         footer {
-            background-color: #E2E8F0;
-            padding: 2rem;
-            margin-top: 5rem;
+            background-color: #030712;
+            padding: 4rem 2rem 2rem;
+            margin-top: 8rem;
+            border-top: 1px solid #1F2937;
             font-size: 0.875rem;
-            color: #64748B;
-            border-top: 1px solid #CBD5E1;
+            color: var(--text-muted);
+        }
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 3rem;
         }
         .debug-box {
-            background: #F1F5F9;
-            padding: 1rem;
-            border-radius: 0.25rem;
-            font-family: monospace;
-            margin-top: 1rem;
+            background: #111827;
+            border: 1px solid #1F2937;
+            padding: 1.2rem;
+            border-radius: 0.5rem;
+            font-family: 'Fira Code', monospace;
+            color: #34D399;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>LABORATORIES CORPORATION <span>TAI</span></h1>
-        <nav><a href="/info.php" style="color:#94A3B8; text-decoration:none;">System Info</a></nav>
+        <div class="nav-container">
+            <h1>LABORATORIES CORPORATION <span>TAI</span></h1>
+            <nav><a href="/info.php" style="color: var(--accent-cyan); text-decoration:none; font-weight:600; font-size:0.9rem;">Core Engine Info &rarr;</a></nav>
+        </div>
     </header>
 
     <section class="hero">
-        <h2>Sistemas de Alta Disponibilidad</h2>
-        <p>Impulsando la infraestructura crítica y la monitorización avanzada para entornos corporativos globales.</p>
-        <a href="#" class="btn">Explorar Servicios</a>
+        <span class="badge">BIOMEDICINA DE PRECISIÓN EN LA ERA DIGITAL</span>
+        <h2>Rediseñando la terapéutica molecular mediante <em>Inteligencia Artificial</em></h2>
+        <p>Aceleramos el descubrimiento de fármacos y el modelado celular combinando redes neuronales profundas con secuenciación genética avanzada.</p>
     </section>
 
     <main class="container">
+        <h2 class="section-title">Líneas de Investigación Estratégica</h2>
         <div class="grid">
             <div class="card">
-                <h3>Infraestructura Core</h3>
-                <p>Despliegue automatizado de Controladores de Dominio y gestión centralizada de identidades.</p>
+                <h3>Síntesis Molecular por IA</h3>
+                <p>Algoritmos predictivos basados en aprendizaje profundo que diseñan compuestos químicos óptimos dirigidos de forma precisa, reduciendo los tiempos de cribado clínico de años a cuestión de días.</p>
             </div>
             <div class="card">
-                <h3>Monitorización Proactiva</h3>
-                <p>Sistemas analíticos basados en Prometheus y telemetría en tiempo real para aplicaciones Web.</p>
+                <h3>Genómica Computacional</h3>
+                <p>Secuenciación masiva y análisis predictivo de variantes moleculares complejas, orientados al desarrollo inmediato de terapias personalizadas e inmunoterapia oncológica avanzada.</p>
             </div>
             <div class="card">
-                <h3>Seguridad de Capa Web</h3>
-                <p>Frontales Linux y Windows balanceados con políticas estrictas de cifrado y auditoría.</p>
+                <h3>Simulación Orgánica Celular</h3>
+                <p>Modelado matemático a escala microscópica de respuestas celulares frente a nuevos patógenos mediante gemelos digitales y redes generativas adversarias (GANs).</p>
+            </div>
+        </div>
+
+        <div class="info-hq">
+            <div class="hq-text">
+                <h3>Sede Global de Innovación</h3>
+                <p>Nuestras instalaciones principales unifican a científicos de datos y biólogos moleculares de primer nivel mundial.</p>
+            </div>
+            <div class="hq-location">
+                <strong>Corporación TAI GmbH</strong><br>
+                Müllerstraße 178, Mitte<br>
+                13353 Berlín, Alemania
             </div>
         </div>
     </main>
 
     <footer>
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
+        <div class="footer-content">
             <div>
-                <p>&copy; 2026 Laboratories Corporation TAI. Todos los derechos reservados.</p>
+                <p>&copy; 2026 Laboratories Corporation TAI. Todos los derechos reservados.<br>
+                Inscrita en el Registro Comercial del Tribunal de Distrito de Charlottenburg (Berlín).</p>
             </div>
             <div>
-                <strong>Nodo de Diagnóstico:</strong>
+                <strong>Entorno del Clúster (Métricas de Diagnóstico):</strong>
                 <div class="debug-box">
-                    Host: <?php echo gethostname(); ?><br>
-                    Server Date: <?php echo date('Y-m-d H:i:s'); ?><br>
-                    PHP Version: <?php echo phpversion(); ?><br>
-                    SERVER_ADDR: <?php echo $_SERVER['SERVER_ADDR'] ?? '?'; ?><br>
-                    HTTP_HOST: <?php echo $_SERVER['HTTP_HOST'] ?? '?'; ?>
+                    NODE_ID: <?php echo gethostname(); ?><br>
+                    TIME_UTC: <?php echo date('Y-m-d H:i:s'); ?><br>
+                    RUNTIME: PHP v<?php echo phpversion(); ?><br>
+                    IP_INTERNAL: <?php echo $_SERVER['SERVER_ADDR'] ?? '0.0.0.0'; ?><br>
+                    ROUTING_HOST: <?php echo $_SERVER['HTTP_HOST'] ?? 'localhost'; ?>
                 </div>
             </div>
         </div>

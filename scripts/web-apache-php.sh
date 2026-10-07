@@ -6,22 +6,22 @@ set -e
 # --- REPOSITORIO OFICIAL ---
 REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/heads/main/apache"
 
-echo "==> Actualizando el sistema e instalando dependencias..."
+echo "==> Actualizando el sistema..."
 dnf -y update
-dnf -y install httpd php php-mysqlnd curl
+
+echo "==> Instalando dependencias web (sin forzar el paquete curl en AL2023)..."
+# Eliminamos 'curl' de la lista de instalación ya que curl-minimal está preinstalado en el sistema
+dnf -y install httpd php php-mysqlnd
 
 echo "==> Limpiando el directorio web raiz..."
 rm -rf /var/www/html/*
 
 echo "==> Descargando la aplicacion web corporativa desde GitHub..."
-# Descarga de index.php corporativo
+# curl-minimal ejecutará esta descarga perfectamente
 curl -sS -L -o /var/www/html/index.php "${REPO_BASE_URL}/index.php"
-
-# Descarga de info.php de diagnostico
 curl -sS -L -o /var/www/html/info.php "${REPO_BASE_URL}/info.php"
 
 # --- CONTROL DE FALLAS (FALLBACK) ---
-# Validamos que index.php no este vacio o corrupto por un error de red
 if [ ! -s /var/www/html/index.php ]; then
     echo "ERROR: No se pudo descargar desde el repositorio. Aplicando contingencia local..."
     cat > /var/www/html/index.php <<'EOF'
