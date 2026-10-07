@@ -13,7 +13,6 @@ try {
     net user Administrator $AdminPassword
 
     Write-Host "==> Habilitando ICMP de forma segura (Ping)..."
-    # Volvemos a la regla de la Versión 1 que SI funcionaba y no rompe la red
     Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In
 
     Write-Host "==> Instalando AD DS y DNS..."
@@ -55,7 +54,7 @@ try {
     Add-DnsServerForwarder -IPAddress "169.254.169.253" -ErrorAction SilentlyContinue
 
     Write-Host "==> Creando OUs..."
-    $ouRoot = "DC=$($domain.DNSRoot.Replace('.', ',DC='))"
+    $ouRoot = "DC=$("__DOMAINNAME__".Replace('.', ',DC='))"
 
     foreach($ou in "Corp","Servers","Workstations","Service"){
         if(-not (Get-ADOrganizationalUnit -Filter "Name -eq '$ou'" -ErrorAction SilentlyContinue)){
@@ -97,7 +96,8 @@ try {
     if (Test-Path $vulnPath) {
         # Carga por Dot-Sourcing para asegurar visibilidad de funciones de script plano
         . $vulnPath
-        Invoke-VulnAD -UsersLimit 100 -DomainName $domain.DNSRoot
+        # Usamos el marcador estatico inyectado para evitar problemas de scope
+        Invoke-VulnAD -UsersLimit 150 -DomainName "__DOMAINNAME__"
         Write-Host "==> vulnerable-AD ejecutado con exito."
     }
 
@@ -115,20 +115,20 @@ finally {
 '@
     # --- FIN DEL SCRIPT POST-REBOOT ---
 
-    # Reemplazo de contraseña seguro en el bloque de texto
+    # Reemplazos seguros en el bloque de texto (Contraseña y Nombre de Dominio)
     $post = $post.Replace("__ADMINPASS__", $AdminPassword)
+    $post = $post.Replace("__DOMAINNAME__", $DomainName)
+    
     $post | Set-Content -Path "C:\Scripts\PostDcSetup.ps1" -Encoding ASCII
 
     Write-Host "==> Registrando Tarea Programada ejecutable como SYSTEM..."
     $action  = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File C:\Scripts\PostDcSetup.ps1"
     $trigger = New-ScheduledTaskTrigger -AtStartup
-    # Usamos la definicion nativa directa de SYSTEM mas estable en Task Scheduler
     Register-ScheduledTask -TaskName "PostDcSetup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force | Out-Null
 
     Write-Host "==> Iniciando promocion de bosque AD (La maquina se reiniciara sola)..."
     $sec = ConvertTo-SecureString $AdminPassword -AsPlainText -Force
     
-    # Quitamos el switch conflictivo y dejamos que el comportamiento nativo reinicie
     Install-ADDSForest -DomainName $DomainName -SafeModeAdministratorPassword $sec -InstallDNS -Force
 }
 catch {
