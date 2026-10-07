@@ -109,12 +109,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
         .welcome-box { margin-bottom: 3rem; }
         .welcome-box h2 { font-size: 2.2rem; margin: 0 0 0.5rem; font-weight: 700; }
         .welcome-box p { color: var(--text-muted); margin: 0; font-size: 1.1rem; }
+        
         .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
-        .service-card { background-color: var(--panel-bg); border: 1px solid #1F2937; border-radius: 0.75rem; padding: 2rem; }
+        .services-grid a { text-decoration: none; color: inherit; display: block; }
+        .service-card { background-color: var(--panel-bg); border: 1px solid #1F2937; border-radius: 0.75rem; padding: 2rem; transition: border-color 0.2s ease, transform 0.2s ease; }
+        .service-card:hover { border-color: rgba(6, 182, 212, 0.4); transform: translateY(-2px); }
+        
         .service-card h3 { margin-top: 0; font-size: 1.3rem; color: #FFF; display: flex; justify-content: space-between; align-items: center; }
         .status-indicator { display: inline-block; width: 8px; height: 8px; background-color: var(--status-green); border-radius: 50%; box-shadow: 0 0 8px var(--status-green); }
         .service-card p { color: var(--text-muted); font-size: 0.95rem; margin: 0.5rem 0 1.5rem; }
-        .endpoint-box { background: #090D16; padding: 0.8rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.9rem; color: var(--accent-cyan); border: 1px solid #1F2937; }
+        .endpoint-box { background: #090D16; padding: 0.8rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.9rem; color: var(--accent-cyan); border: 1px solid #1F2937; text-align: center; font-weight: 600; }
         .footer-hub { margin-top: 5rem; border-top: 1px solid #1F2937; padding-top: 2rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-muted); }
     </style>
 </head>
@@ -164,29 +168,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
         </div>
 
         <div class="services-grid">
-            <div class="service-card">
-                <h3>Backend API <span class="status-indicator"></span></h3>
-                <p>Node.js microservices handling core AI molecular data pipelines processing.</p>
-                <div class="endpoint-box">http://10.0.1.12:3000</div>
-            </div>
-            <div class="service-card">
-                <h3>Java Core Application <span class="status-indicator"></span></h3>
-                <p>Apache Tomcat server executing heavy biometric algorithms and modeling tasks.</p>
-                <div class="endpoint-box">http://10.0.1.11:8080</div>
-            </div>
-            <div class="service-card">
-                <h3>Corporate Intranet <span class="status-indicator"></span></h3>
-                <p>Internal documentation portal and secure knowledge base for researchers.</p>
-                <div class="endpoint-box">http://10.0.3.14</div>
-            </div>
-        </div>
+            <!-- Backend API Link -->
+            <a href="/api/">
+                <div class="service-card">
+                    <h3>Backend API <span class="status-indicator"></span></h3>
+                    <p>Node.js microservices handling core AI molecular data pipelines processing.</p>
+                    <div class="endpoint-box">Access API Gateway &rarr;</div>
+                </div>
+            </a>
 
-        <div class="footer-hub">
-            <div>&copy; 2026 Laboratories Corporation TAI. Berlin Global HQ.</div>
-            <div>System Node Monitor: <a href="/health" style="color: var(--accent-blue); text-decoration:none;">/health</a></div>
-        </div>
-    </main>
-<?php endif; ?>
+            <!-- Java App Link -->
+            <a href="/java-app/">
+                <div class="service-card">
+                    <h3>Java Core Application <span class="status-indicator"></span></h3>
+                    <p>Apache Tomcat server executing heavy biometric algorithms and modeling tasks.</p>
+                    <div class="endpoint-box">Launch Java Engine &rarr;</div>
+                </div>
+            </a>
 
-</body>
-</html>
+            <!-- Intranet Link -->
+            <a href="/intranet/">
+                <div class="service-card">
+                    <h3>Corporate Intranet <span class="status-indicator"></span></h3>
+                    <p>Internal documentation portal and secure knowledge base for researchers.</p>
+                    <div class="endpoint-box">Enter Intranet Wiki &rarr;</div>
+                </div>
+            </a>
