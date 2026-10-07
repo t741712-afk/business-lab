@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TAI Labs | Java Core Compute Engine</title>
+    <style>
+        :root { --bg: #060913; --panel: #0d1527; --blue: #3a86ff; --purple: #8338ec; --text: #f8f9fa; --muted: #4e5d78; --green: #39ff14; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header-block { border-bottom: 1px solid #1e293b; padding-bottom: 1rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
+        h1 { margin: 0; font-size: 1.8rem; font-weight: 800; }
+        h1 span { background: linear-gradient(to right, var(--blue), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+        .panel { background: var(--panel); border: 1px solid #1e293b; border-radius: 0.5rem; padding: 1.5rem; }
+        h2 { margin: 0 0 1rem; font-size: 1.2rem; color: var(--blue); border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+        .chart-container { background: #050811; border: 1px solid #1e293b; border-radius: 0.375rem; padding: 1rem; height: 180px; margin-bottom: 1.5rem; }
+        canvas { width: 100%; height: 100%; }
+        .btn-group { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+        button { background: #1e293b; color: white; border: 1px solid #1e293b; padding: 0.6rem 1.2rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; }
+        button:hover { background: var(--blue); }
+        .btn-danger:hover { background: #ef4444; }
+        .terminal-box { background: #03050a; border: 1px solid #1e293b; padding: 1rem; border-radius: 0.375rem; font-family: monospace; color: var(--green); font-size: 0.85rem; height: 220px; overflow-y: hidden; }
+        .metric-card { background: #0a1020; border: 1px solid #1e293b; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1rem; }
+        .metric-val { font-size: 1.5rem; font-weight: bold; font-family: monospace; }
+        .status-tag { background: rgba(57, 255, 20, 0.1); color: var(--green); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        footer { margin-top: 4rem; border-top: 1px solid #1e293b; padding-top: 1rem; font-size: 0.8rem; color: var(--muted); display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-block">
+            <div>
+                <h1>TAI LABS | <span>JAVA CORE COMPUTE ENGINE</span></h1>
+                <div style="color: #4e5d78; font-size: 0.9rem; margin-top: 0.25rem;">Berlin Global Headquarters • Cluster Subsystem-02</div>
+            </div>
+            <div><span class="status-tag" id="engine-status">SYSTEM_OPERATIONAL</span></div>
+        </div>
+        <div class="grid-layout">
+            <div>
+                <div class="panel" style="margin-bottom: 1.5rem;">
+                    <h2>JVM Memory & CPU Telemetry</h2>
+                    <div class="chart-container"><canvas id="telemetryChart"></canvas></div>
+                    <div class="btn-group">
+                        <button onclick="triggerAction('GC')">Force JVM Garbage Collection</button>
+                        <button onclick="triggerAction('THREADS')">Optimize Thread Pool</button>
+                        <button onclick="triggerAction('STOP')" class="btn-danger" style="background:#421515;">Emergency Halt</button>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>GANs Neural Network - Pathogen Sequence Analyzer</h2>
+                    <div class="terminal-box" id="terminalLog"></div>
+                </div>
+            </div>
+            <div>
+                <div class="panel">
+                    <h2>Cluster Metrics</h2>
+                    <div class="metric-card">
+                        <div style="color:#4e5d78; font-size:0.85rem;">Active JVM Threads</div>
+                        <div class="metric-val" id="thread-val">64 / 64</div>
+                    </div>
+                    <div class="metric-card">
+                        <div style="color:#4e5d78; font-size:0.85rem;">Heap Memory Allocation</div>
+                        <div class="metric-val" id="mem-val">4120 MB</div>
+                    </div>
+                    <div class="metric-card">
+                        <div style="color:#4e5d78; font-size:0.85rem;">AI Predictor Accuracy</div>
+                        <div class="metric-val" style="color: #06b6d4;">99.84%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer>
+            <div>&copy; 2026 Laboratories Corporation TAI. All rights reserved.</div>
+            <div>Node: ip-10-0-1-11.internal</div>
+        </footer>
+    </div>
+    <script>
+        const logBox = document.getElementById('terminalLog');
+        const chars = ['A','C','G','T'];
+        function addLog() {
+            let seq = ''; for(let i=0;i<16;i++) seq += chars[Math.floor(Math.random()*4)];
+            const time = new Date().toLocaleTimeString();
+            const logs = [
+                `[${time}] [INFO] Processing molecular chain: TAI-${seq}`,
+                `[${time}] [GANs] Executing match matrix... Match: ${(Math.random()*(100-92)+92).toFixed(2)}%`,
+                `[${time}] [SUCCESS] Sequence struct successfully saved to heap buffer.`
+            ];
+            const div = document.createElement('div'); div.innerText = logs[Math.floor(Math.random()*logs.length)];
+            logBox.appendChild(div); if(logBox.children.length > 10) logBox.removeChild(logBox.children);
+        }
+        setInterval(addLog, 1500);
+
+        const canvas = document.getElementById('telemetryChart'); const ctx = canvas.getContext('2d');
+        let points = Array(30).fill(50);
+        function drawChart() {
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0,0,canvas.width,canvas.height); ctx.strokeStyle='#131a35';
+            for(let i=0;i<canvas.width;i+=40){ ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke(); }
+            points.shift(); let newVal = points[points.length-1] + (Math.random()*20-10);
+            if(newVal<10||newVal>140) newVal=70; points.push(newVal);
+            ctx.beginPath(); ctx.strokeStyle='#3a86ff'; ctx.lineWidth=2;
+            let step = canvas.width/(points.length-1); ctx.moveTo(0,canvas.height-points);
+            for(let i=1;i<points.length;i++) ctx.lineTo(i*step,canvas.height-points[i]); ctx.stroke();
+        }
+        setInterval(drawChart, 250);
+
+        function triggerAction(action) {
+            const div = document.createElement('div'); const time = new Date().toLocaleTimeString();
+            if(action==='GC'){ div.style.color='#34d399'; div.innerText=`[${time}] [CMD] GC manual active. Freeing heap...`; document.getElementById('mem-val').innerText="2840 MB"; }
+            if(action==='THREADS'){ div.style.color='#06b6d4'; div.innerText=`[${time}] [CMD] Recalculating workers pool across 64 cores.`; document.getElementById('thread-val').innerText="64 / 64 (Optimized)"; }
+            if(action==='STOP'){ div.style.color='#ef4444'; div.innerText=`[${time}] [CRIT] EMERGENCY HALT EXECUTED. Core paused.`; document.getElementById('engine-status').innerText="ENGINE_HALTED"; document.getElementById('engine-status').style.color="#ef4444"; }
+            logBox.appendChild(div);
+        }
+    </script>
+</body>
