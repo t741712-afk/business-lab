@@ -1,8 +1,8 @@
 <?php
-// index.php - Laboratories Corporation TAI (Biomedicina & IA)
+// index.php - Laboratories Corporation TAI (Biomedicine & AI)
 ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -192,37 +192,37 @@
     </header>
 
     <section class="hero">
-        <span class="badge">BIOMEDICINA DE PRECISIÓN EN LA ERA DIGITAL</span>
-        <h2>Rediseñando la terapéutica molecular mediante <em>Inteligencia Artificial</em></h2>
-        <p>Aceleramos el descubrimiento de fármacos y el modelado celular combinando redes neuronales profundas con secuenciación genética avanzada.</p>
+        <span class="badge">PRECISION BIOMEDICINE IN THE DIGITAL ERA</span>
+        <h2>Reshaping molecular therapeutics through <em>Artificial Intelligence</em></h2>
+        <p>Accelerating drug discovery and cellular modeling by combining deep neural networks with advanced genetic sequencing.</p>
     </section>
 
     <main class="container">
-        <h2 class="section-title">Líneas de Investigación Estratégica</h2>
+        <h2 class="section-title">Strategic Research Areas</h2>
         <div class="grid">
             <div class="card">
-                <h3>Síntesis Molecular por IA</h3>
-                <p>Algoritmos predictivos basados en aprendizaje profundo que diseñan compuestos químicos óptimos dirigidos de forma precisa, reduciendo los tiempos de cribado clínico de años a cuestión de días.</p>
+                <h3>AI-Driven Molecular Synthesis</h3>
+                <p>Predictive algorithms based on deep learning that design optimal, target-specific chemical compounds, reducing clinical screening times from years to mere days.</p>
             </div>
             <div class="card">
-                <h3>Genómica Computacional</h3>
-                <p>Secuenciación masiva y análisis predictivo de variantes moleculares complejas, orientados al desarrollo inmediato de terapias personalizadas e inmunoterapia oncológica avanzada.</p>
+                <h3>Computational Genomics</h3>
+                <p>Massive sequencing and predictive analysis of complex molecular variants, focused on the immediate development of personalized therapies and advanced cancer immunotherapy.</p>
             </div>
             <div class="card">
-                <h3>Simulación Orgánica Celular</h3>
-                <p>Modelado matemático a escala microscópica de respuestas celulares frente a nuevos patógenos mediante gemelos digitales y redes generativas adversarias (GANs).</p>
+                <h3>Cellular Organ Simulation</h3>
+                <p>Microscale mathematical modeling of cellular responses against novel pathogens utilizing digital twins and generative adversarial networks (GANs).</p>
             </div>
         </div>
 
         <div class="info-hq">
             <div class="hq-text">
-                <h3>Sede Global de Innovación</h3>
-                <p>Nuestras instalaciones principales unifican a científicos de datos y biólogos moleculares de primer nivel mundial.</p>
+                <h3>Global Innovation Headquarters</h3>
+                <p>Our main facility unifies world-class data scientists and molecular biologists under one roof.</p>
             </div>
             <div class="hq-location">
-                <strong>Corporación TAI GmbH</strong><br>
+                <strong>Corporation TAI GmbH</strong><br>
                 Müllerstraße 178, Mitte<br>
-                13353 Berlín, Alemania
+                13353 Berlin, Germany
             </div>
         </div>
     </main>
@@ -230,11 +230,11 @@
     <footer>
         <div class="footer-content">
             <div>
-                <p>&copy; 2026 Laboratories Corporation TAI. Todos los derechos reservados.<br>
-                Inscrita en el Registro Comercial del Tribunal de Distrito de Charlottenburg (Berlín).</p>
+                <p>&copy; 2026 Laboratories Corporation TAI. All rights reserved.<br>
+                Registered in the Commercial Register of the District Court of Charlottenburg (Berlin).</p>
             </div>
             <div>
-                <strong>Entorno del Clúster (Métricas de Diagnóstico):</strong>
+                <strong>Cluster Environment (Diagnostic Metrics):</strong>
                 <div class="debug-box">
                     NODE_ID: <?php echo gethostname(); ?><br>
                     TIME_UTC: <?php echo date('Y-m-d H:i:s'); ?><br>
