@@ -4,7 +4,7 @@ set -x
 set -e
 
 # --- REPOSITORIO OFICIAL ---
-REPO_BASE_URL="https://githubusercontent.com"
+REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/heads/main/intranet"
 
 echo "==> Actualizando el sistema operativo e instalando Apache httpd..."
 dnf -y update
