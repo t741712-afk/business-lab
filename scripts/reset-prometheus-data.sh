@@ -4,38 +4,24 @@ set -euo pipefail
 CONTAINER="prometheus"
 DATA_MOUNT="/prometheus"
 
-echo "==> Localizando volumen de Prometheus..."
-
-VOLUME=$(sudo docker inspect "$CONTAINER" \
-  --format '{{range .Mounts}}{{if eq .Destination "/prometheus"}}{{.Name}}{{end}}{{end}}')
-
-if [ -z "$VOLUME" ]; then
-  echo "ERROR: no se encontró ningún volumen montado en $DATA_MOUNT"
+echo "==> Verificando existencia del contenedor $CONTAINER..."
+if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+  echo "ERROR: El contenedor $CONTAINER no existe."
   exit 1
 fi
 
-MOUNTPOINT=$(sudo docker volume inspect "$VOLUME" \
-  --format '{{.Mountpoint}}')
-
-if [ -z "$MOUNTPOINT" ] || [ ! -d "$MOUNTPOINT" ]; then
-  echo "ERROR: no se pudo localizar el Mountpoint del volumen:"
-  echo "$VOLUME"
-  exit 1
-fi
-
-echo "    Contenedor : $CONTAINER"
-echo "    Volumen    : $VOLUME"
-echo "    Mountpoint : $MOUNTPOINT"
-
+echo "    Contenedor detectado correctamente."
 echo
+
 echo "==> Deteniendo Prometheus..."
 sudo docker stop "$CONTAINER"
 
-echo "==> Eliminando histórico de Prometheus..."
-sudo find "$MOUNTPOINT" \
-  -mindepth 1 \
-  -maxdepth 1 \
-  -exec rm -rf -- {} +
+echo "==> Eliminando histórico de Prometheus de forma segura..."
+# Explicación: Montamos el mismo almacenamiento en un contenedor temporal 'alpine' 
+# y borramos el contenido de forma nativa desde dentro de Docker, evitando problemas de permisos en el Host.
+sudo docker run --rm \
+  --volumes-from "$CONTAINER" \
+  alpine sh -c "find $DATA_MOUNT -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"
 
 echo "==> Arrancando Prometheus..."
 sudo docker start "$CONTAINER"
@@ -47,5 +33,5 @@ sudo docker ps --filter "name=^/${CONTAINER}$" \
   --format 'table {{.Names}}\t{{.Status}}'
 
 echo
-echo "OK: histórico de Prometheus eliminado."
+echo "OK: histórico de Prometheus eliminado con éxito."
 echo "Prometheus ha vuelto a arrancar desde cero."

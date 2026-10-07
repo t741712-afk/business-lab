@@ -56,7 +56,7 @@ groups:
         for: 1m
         labels: { severity: critical }
         annotations:
-          summary: "Servicio CAIDO: {{ $labels.instance }} ({{ $labels.job }})"
+          summary: "Servicio DOWN: {{ $labels.instance }} ({{ $labels.job }})"
 EOF
 
 # --- Prometheus: config + targets (TODOS los servicios del lab) -------------
@@ -226,7 +226,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
   "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
-      "type": "stat", "title": "Servicios ARRIBA ahora", "id": 1,
+      "type": "stat", "title": "Servicios UP ahora", "id": 1,
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [ { "expr": "sum(probe_success)", "refId": "A" } ]
@@ -239,13 +239,13 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "targets": [ { "expr": "count(probe_success == 0) or vector(0)", "refId": "A" } ]
     },
     {
-      "type": "stat", "title": "Tiempo caído TOTAL en el rango (servicios reales, sin ping Windows)", "id": 3,
+      "type": "stat", "title": "Tiempo caído TOTAL en el rango", "id": 3,
       "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "fixed", "fixedColor": "orange" } } },
       "targets": [ { "expr": "sum((1 - avg_over_time(probe_success{job!=\"icmp\"}[$__range])) * $__range_s)", "refId": "A" } ]
     },
     {
-      "type": "table", "title": "Tiempo acumulado CAÍDO y disponibilidad por servicio (rango seleccionado)", "id": 4,
+      "type": "table", "title": "Tiempo acumulado CAÍDO y disponibilidad por servicio", "id": 4,
       "gridPos": { "h": 13, "w": 24, "x": 0, "y": 4 },
       "options": { "sortBy": [ { "displayName": "Caído (acumulado)", "desc": true } ] },
       "targets": [
@@ -274,14 +274,14 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       }
     },
     {
-      "type": "state-timeline", "title": "Línea de tiempo (verde=arriba · rojo=caído)", "id": 5,
+      "type": "state-timeline", "title": "Línea de tiempo (verde=UP · rojo=DOWN)", "id": 5,
       "gridPos": { "h": 14, "w": 24, "x": 0, "y": 17 },
       "options": { "mergeValues": true, "showValue": "never", "rowHeight": 0.9,
         "legend": { "displayMode": "list", "placement": "bottom" } },
       "fieldConfig": { "defaults": {
         "color": { "mode": "thresholds" },
         "mappings": [ { "type": "value", "options": {
-          "0": { "text": "CAÍDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ],
+          "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ],
         "thresholds": { "mode": "absolute", "steps": [ {"color":"red","value":null}, {"color":"green","value":1} ] },
         "custom": { "fillOpacity": 80, "lineWidth": 0 } } },
       "targets": [ { "expr": "probe_success", "legendFormat": "{{instance}}", "refId": "A" } ]
@@ -296,7 +296,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "fieldConfig": { "defaults": {
         "custom": { "filterable": true, "cellOptions": { "type": "color-background" } },
         "mappings": [ { "type": "value", "options": {
-          "0": { "text": "CAÍDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ] } },
+          "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ] } },
       "targets": [ { "expr": "probe_success", "format": "table", "instant": true, "refId": "A" } ]
     }
   ]
