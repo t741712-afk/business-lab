@@ -8,7 +8,7 @@
 # =============================================================================
 set -x
 GF_PASS="${GF_PASS:-Monitor#2026}"
-dnf -y update
+dnf -y ARRIBAdate
 dnf -y install docker
 systemctl enable --now docker
 
@@ -48,7 +48,7 @@ EOF
 
 # --- Prometheus: alertas ----------------------------------------------------
 cat > /opt/mon/prometheus/alert.rules.yml <<'EOF'
-groups:
+groARRIBAs:
   - name: servicios
     rules:
       - alert: ServicioCaido
@@ -56,7 +56,7 @@ groups:
         for: 1m
         labels: { severity: critical }
         annotations:
-          summary: "Servicio DOWN: {{ $labels.instance }} ({{ $labels.job }})"
+          summary: "Servicio CAIDO: {{ $labels.instance }} ({{ $labels.job }})"
 EOF
 
 # --- Prometheus: config + targets (TODOS los servicios del lab) -------------
@@ -226,7 +226,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
   "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
-      "type": "stat", "title": "Servicios UP ahora", "id": 1,
+      "type": "stat", "title": "Servicios ARRIBA ahora", "id": 1,
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [ { "expr": "sum(probe_success)", "refId": "A" } ]
@@ -249,14 +249,14 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "gridPos": { "h": 13, "w": 24, "x": 0, "y": 4 },
       "options": { "sortBy": [ { "displayName": "Caído (acumulado)", "desc": true } ] },
       "targets": [
-        { "expr": "(1 - avg_over_time(probe_success[$__range])) * $__range_s", "format": "table", "instant": true, "refId": "DOWN" },
-        { "expr": "avg_over_time(probe_success[$__range]) * 100", "format": "table", "instant": true, "refId": "UP" }
+        { "expr": "(1 - avg_over_time(probe_success[$__range])) * $__range_s", "format": "table", "instant": true, "refId": "CAIDO" },
+        { "expr": "avg_over_time(probe_success[$__range]) * 100", "format": "table", "instant": true, "refId": "ARRIBA" }
       ],
       "transformations": [
         { "id": "merge", "options": {} },
         { "id": "organize", "options": {
             "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "__name__": true },
-            "renameByName": { "instance": "Servicio", "job": "Sonda", "Value #DOWN": "Caído (acumulado)", "Value #UP": "Uptime %" }
+            "renameByName": { "instance": "Servicio", "job": "Sonda", "Value #CAIDO": "Caído (acumulado)", "Value #ARRIBA": "ARRIBAtime %" }
         } }
       ],
       "fieldConfig": {
@@ -266,7 +266,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
             "properties": [ { "id": "unit", "value": "s" },
               { "id": "custom.cellOptions", "value": { "type": "color-text" } },
               { "id": "thresholds", "value": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"orange","value":1}, {"color":"red","value":300} ] } } ] },
-          { "matcher": { "id": "byName", "options": "Uptime %" },
+          { "matcher": { "id": "byName", "options": "ARRIBAtime %" },
             "properties": [ { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 },
               { "id": "custom.cellOptions", "value": { "type": "color-background" } },
               { "id": "thresholds", "value": { "mode": "absolute", "steps": [ {"color":"red","value":null}, {"color":"yellow","value":99}, {"color":"green","value":99.9} ] } } ] }
@@ -274,14 +274,14 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       }
     },
     {
-      "type": "state-timeline", "title": "Línea de tiempo (verde=UP · rojo=DOWN)", "id": 5,
+      "type": "state-timeline", "title": "Línea de tiempo (verde=ARRIBA · rojo=CAIDO)", "id": 5,
       "gridPos": { "h": 14, "w": 24, "x": 0, "y": 17 },
       "options": { "mergeValues": true, "showValue": "never", "rowHeight": 0.9,
         "legend": { "displayMode": "list", "placement": "bottom" } },
       "fieldConfig": { "defaults": {
         "color": { "mode": "thresholds" },
         "mappings": [ { "type": "value", "options": {
-          "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ],
+          "0": { "text": "CAIDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ],
         "thresholds": { "mode": "absolute", "steps": [ {"color":"red","value":null}, {"color":"green","value":1} ] },
         "custom": { "fillOpacity": 80, "lineWidth": 0 } } },
       "targets": [ { "expr": "probe_success", "legendFormat": "{{instance}}", "refId": "A" } ]
@@ -296,7 +296,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "fieldConfig": { "defaults": {
         "custom": { "filterable": true, "cellOptions": { "type": "color-background" } },
         "mappings": [ { "type": "value", "options": {
-          "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ] } },
+          "0": { "text": "CAIDO", "color": "red" }, "1": { "text": "ARRIBA", "color": "green" } } } ] } },
       "targets": [ { "expr": "probe_success", "format": "table", "instant": true, "refId": "A" } ]
     }
   ]
@@ -330,7 +330,7 @@ docker run -d --restart unless-stopped --name prometheus --network mon -p 9090:9
 # Grafana sirve HTTPS en el 443 del host -> 3000 del contenedor (TLS lo termina Grafana).
 docker run -d --restart unless-stopped --name grafana --network mon -p 443:3000 \
   -e GF_SECURITY_ADMIN_PASSWORD="${GF_PASS}" \
-  -e GF_USERS_ALLOW_SIGN_UP=false \
+  -e GF_USERS_ALLOW_SIGN_ARRIBA=false \
   -e GF_SERVER_PROTOCOL=https \
   -e GF_SERVER_CERT_FILE=/etc/grafana/certs/grafana.crt \
   -e GF_SERVER_CERT_KEY=/etc/grafana/certs/grafana.key \
