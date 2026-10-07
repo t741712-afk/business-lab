@@ -1,6 +1,6 @@
 param(
-  [string]$DomainName = "corp.local",
-  [string]$AdminPassword = "BusinessLab#2026"
+  [string]\$DomainName = "corp.local",
+  [string]\$AdminPassword = "BusinessLab#2026"
 )
 
 \$ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ try {
     Write-Host "==> Preparando directorio C:\Scripts..."
     New-Item -Path "C:\Scripts" -ItemType Directory -Force | Out-Null
 
-    # --- INICIO DEL SCRIPT POST-REBOOT (Aquí usamos marcadores de texto para no romper variables) ---
+    # --- INICIO DEL SCRIPT POST-REBOOT (Here-String Literal puro, no se expanden variables del script raíz) ---
     \(post = @'\)ErrorActionPreference = "Stop"
 
 Start-Transcript -Path "C:\prov.log" -Append
@@ -29,7 +29,7 @@ Start-Transcript -Path "C:\prov.log" -Append
 
 try {
     Write-Host "==> PostDcSetup iniciado."
-    Write-Host "==> Esperando a que Active Directory esté disponible..."
+    Write-Host "==> Esperando a que Active Directory este disponible..."
 
     ready = false
     for (\$i = 0; i -lt 180; i++) {
@@ -47,7 +47,7 @@ try {
             }
         }
         catch {
-            Write-Host "    AD todavía no está listo..."
+            Write-Host "    AD todavia no esta listo..."
         }
         Start-Sleep -Seconds 10
     }
@@ -67,16 +67,16 @@ try {
     \$ouRoot = "DC=(domain.DNSRoot.Replace('.', ',DC='))"
 
     if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=Corp)" -SearchBase \$ouRoot -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name "Corp" -Path \$ouRoot
+        New-ADOrganizationalUnit -Name "Corp" -Path ouRoot -ProtectedFromAccidentalDeletion false
     }
     if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=Servers)" -SearchBase \$ouRoot -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name "Servers" -Path \$ouRoot
+        New-ADOrganizationalUnit -Name "Servers" -Path ouRoot -ProtectedFromAccidentalDeletion false
     }
     if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=Workstations)" -SearchBase \$ouRoot -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name "Workstations" -Path \$ouRoot
+        New-ADOrganizationalUnit -Name "Workstations" -Path ouRoot -ProtectedFromAccidentalDeletion false
     }
     if (-not (Get-ADOrganizationalUnit -LDAPFilter "(ou=Service)" -SearchBase \$ouRoot -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name "Service" -Path \$ouRoot
+        New-ADOrganizationalUnit -Name "Service" -Path ouRoot -ProtectedFromAccidentalDeletion false
     }
 
     Write-Host "==> Creando cuenta DomainJoin..."
@@ -84,7 +84,7 @@ try {
 
     \$domainJoin = Get-ADUser -Identity "DomainJoin" -ErrorAction SilentlyContinue
     if (-not \$domainJoin) {
-        New-ADUser -Name "DomainJoin" -SamAccountName "DomainJoin" -AccountPassword domainJoinPassword -Enabled true
+        New-ADUser -Name "DomainJoin" -SamAccountName "DomainJoin" -AccountPassword \$domainJoinPassword -Enabled true -PasswordNeverExpires true
     }
 
     Add-ADGroupMember -Identity "Domain Admins" -Members "DomainJoin" -ErrorAction SilentlyContinue
@@ -99,7 +99,7 @@ try {
 
     foreach (u in baseUsers) {
         if (-not (Get-ADUser -Identity \(u.Sam -ErrorAction SilentlyContinue)) {\)password = ConvertTo-SecureString "__ADMINPASS__" -AsPlainText -Force
-            New-ADUser -Name \$u.Name -SamAccountName u.Sam -AccountPassword password -Enabled true -Path "OU=Corp,ouRoot"
+            New-ADUser -Name u.Name -SamAccountName u.Sam -AccountPassword password -Enabled true -PasswordNeverExpires true -Path "OU=Corp,ouRoot"
         }
     }
 
@@ -126,10 +126,10 @@ try {
     Write-Host "    SHA256: (hash.Hash)"
 
     Write-Host "==> Cargando e invocando vulnerable-AD..."
-    Import-Module \$vulnPath -Force
+    . \$vulnPath
 
     if (-not (Get-Command Invoke-VulnAD -ErrorAction SilentlyContinue)) {
-        throw "Invoke-VulnAD no está disponible después de cargar vulnad.ps1."
+        throw "Invoke-VulnAD no esta disponible despues de cargar vulnad.ps1."
     }
 
     Write-Host "    Invoke-VulnAD disponible. Ejecutando..."
@@ -160,7 +160,7 @@ catch {
     Write-Host "!!! ERROR EN POSTDCSETUP !!!"
     Write-Host \$_.Exception.Message
     \$_ | Out-File -FilePath "C:\prov.error" -Append
-    Write-Host "La tarea se mantiene registrada para diagnóstico/reintento."
+    Write-Host "La tarea se mantiene registrada para diagnostico/reintento."
     throw
 }
 finally {
@@ -169,7 +169,7 @@ finally {
 '@
     # --- FIN DEL SCRIPT POST-REBOOT ---
 
-    # Reemplazo de marcadores seguro controlado por el script raíz
+    # Reemplazo seguro del marcador de la contraseña
     \$post = \(post.Replace("__ADMINPASS__", \)AdminPassword)
 
     Write-Host "==> Escribiendo script PostDcSetup..."
@@ -183,11 +183,12 @@ finally {
     Register-ScheduledTask -TaskName "PostDcSetup" -Action action -Trigger trigger -Principal principal -Settings settings -Force
 
     Write-Host "==> Promoviendo servidor a nuevo forest..."
+    secPassword = ConvertTo-SecureString AdminPassword -AsPlainText -Force
     Install-ADDSForest `
         -DomainName $DomainName `
         -DomainNetbiosName "CORP" `
         -InstallDns `
-        -SafeModeAdministratorPassword (ConvertTo-SecureString \$AdminPassword -AsPlainText -Force) `
+        -SafeModeAdministratorPassword \$secPassword `
         -Force `
         -NoRebootOnCompletion:\$false
 }
