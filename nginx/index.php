@@ -2,35 +2,31 @@
 // nginx/index.php - Operations Hub with Active Directory LDAP Authentication
 session_start();
 
-$domain_controllers = ['10.0.3.10', '10.0.3.11']; // Reemplaza con las IPs reales de tus DCs si son distintas
-$domain_suffix = '@corp.local';
+$domain_controllers = array("10.0.3.10");
+$domain_suffix = "@corp.local";
 
-$error_message = '';
+$error_message = "";
 
-// Procesar el formulario de Login
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset($_POST['password'])) {
-    $username = trim($_POST['username']);
-    $password = $_POST['password'];
+// Process Login Form
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset($_POST["password"])) {
+    $username = trim($_POST["username"]);
+    $password = $_POST["password"];
 
     if (empty($username) || empty($password)) {
-        $error_message = 'Please enter both username and password.';
+        $error_message = "Please enter both username and password.";
     } else {
-        // Asegurar el formato UPN para Active Directory (ej. jgarcia@corp.local)
-        $ldap_user = (strpos($username, '@') === false) ? $username . $domain_suffix : $username;
-        
+        $ldap_user = (strpos($username, "@") === false) ? $username . $domain_suffix : $username;
         $authenticated = false;
         
-        // Intentar autenticar contra los DCs disponibles (Alta Disponibilidad)
         foreach ($domain_controllers as $dc) {
             $ldap_conn = @ldap_connect($dc);
             if ($ldap_conn) {
-                ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
-                ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
+                @ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
+                @ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
                 
-                // Intentar el Bind (autenticación)
                 if (@ldap_bind($ldap_conn, $ldap_user, $password)) {
-                    $_SESSION['authenticated'] = true;
-                    $_SESSION['username'] = explode('@', $ldap_user)[0];
+                    $_SESSION["authenticated"] = true;
+                    $_SESSION["username"] = $username;
                     $authenticated = true;
                     @ldap_close($ldap_conn);
                     break;
@@ -40,20 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
         }
         
         if (!$authenticated) {
-            $error_message = 'Invalid domain credentials. Access denied.';
+            $error_message = "Invalid domain credentials. Access denied.";
         }
     }
 }
 
-// Procesar el Logout
-if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+// Process Logout
+if (isset($_GET["action"]) && $_GET["action"] === "logout") {
     session_destroy();
-    header('Location: /index.php');
+    header("Location: /index.php");
     exit;
 }
 
-// --- VISTA 1: SI NO ESTÁ AUTENTICADO, MOSTRAR RECUADRO DE LOGIN ---
-if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true):
+if (!isset($_SESSION["authenticated"]) || $_SESSION["authenticated"] !== true):
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -181,8 +176,6 @@ if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true):
 <?php 
 exit;
 endif; 
-
-// --- VISTA 2: SI ESTÁ AUTENTICADO, MOSTRAR EL INTERFAZ DE OPERACIONES ---
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -308,3 +301,18 @@ endif;
         .footer-hub {
             margin-top: 5rem;
             border-top: 1px solid #1F2937;
+            padding-top: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <h1>LABORATORIES CORPORATION <span>TAI</span></h1>
+            <div class="user-menu">
