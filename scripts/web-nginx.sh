@@ -52,7 +52,7 @@ server {
 
     # 2. Redirección Proxy Inverso a la App de Java (Tomcat)
     location /java-app/ {
-        proxy_pass http://10.0.1;
+        proxy_pass http://10.0.1.11:8080/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
