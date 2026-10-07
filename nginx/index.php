@@ -2,7 +2,7 @@
 // nginx/index.php - Operations Hub with Active Directory LDAP Authentication
 session_start();
 
-$domain_controllers = ['10.0.0.32', '10.0.0.33']; // Reemplaza con las IPs reales de tus DCs si son distintas
+$domain_controllers = ['10.0.3.10', '10.0.3.11']; // Reemplaza con las IPs reales de tus DCs si son distintas
 $domain_suffix = '@corp.local';
 
 $error_message = '';
