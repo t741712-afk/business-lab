@@ -5,8 +5,9 @@ set -e
 
 REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/heads/main/api"
 
-echo "==> Asegurando entorno de ejecucion..."
-dnf -y install nodejs npm curl
+echo "==> Asegurando entorno de ejecucion (Sin forzar el conflicto de curl)..."
+# Eliminamos "curl" de la lista; nodejs y npm instalaran limpiamente sin chocar con curl-minimal
+dnf -y install nodejs npm
 
 echo "==> Preparando el directorio de la aplicacion..."
 mkdir -p /opt/api
