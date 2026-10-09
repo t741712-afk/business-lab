@@ -242,7 +242,7 @@ cat > /opt/mon/grafana/dashboards/blackbox.json <<'EOF'
       "type": "stat", "title": "Tiempo caído TOTAL en el rango", "id": 3,
       "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "fixed", "fixedColor": "orange" } } },
-      "targets": [ { "expr": "sum((1 - avg_over_time(probe_success[$__range]))) * $__range_s", "refId": "A" } ]
+      "targets": [ { "expr": "sum((1 - avg_over_time(probe_success{job!=\"icmp\"}[$__range])) * $__range_s)", "refId": "A" } ]
     },
     {
       "type": "table", "title": "Tiempo acumulado CAÍDO y disponibilidad por servicio", "id": 4,
