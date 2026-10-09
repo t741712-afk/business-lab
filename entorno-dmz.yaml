@@ -190,6 +190,30 @@ Resources:
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/bastion.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; DOMAIN="${DomainName}" bash /tmp/p.sh
 
+  # --- Service Gateway --------------------------------------
+  ServiceGateway:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: c5.2xlarge
+      ImageId: 'ami-0c831944974e8124c'
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref PublicSubnet
+          PrivateIpAddress: 10.0.0.75
+          GroupSet:
+              - !Ref DmzSg
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: 300
+            VolumeType: gp3
+      Tags:
+        - { Key: Name, Value: servicegateway }
+        - { Key: Zone, Value: dmz }
+
   # --- Load Balancer (HAProxy/Nginx) --------------------------------------
   LoadBalancer:
     Type: AWS::EC2::Instance
@@ -381,3 +405,6 @@ Outputs:
   PrometheusUrl:
     Description: Prometheus (puerto 9090, solo accesible desde AllowedAdminCidr).
     Value: !Sub "http://${Monitor.PublicIp}:9090"
+  ServiceGateway:
+    Description: Use this IP address to access the Service Gateway using SSH (ssh -i keypair.pem "admin@SG-Public-IP-Address").
+    Value: !GetAtt ServiceGateway.PublicIp
