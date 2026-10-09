@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AWS Pentest Lab — PentAGI en host Ubuntu (Red 10.100.0.0/24).
+  Instancia limpia sin software preinstalado (actualizacion de repositorios unicamente).
+  ADAPTADO A LAS RESTRICCIONES SCP DE PX (Trend Micro):
+    * Region unica: us-east-1
+    * Tipos permitidos: t2/t3 hasta xlarge, c5.2xlarge. SIN GPU, sin m5.
+    * RunInstances exige EBS cifrado + IMDSv2 (ya incluidos).
+    * AWS Marketplace bloqueado.
+    * IAM write bloqueado (acceso solo por SSH/KeyPair).
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  PARAMETROS
+# ──────────────────────────────────────────────────────────────────────────────
+Parameters:
+
+  AllowedAdminCidr:
+    Type: String
+    Description: >
+      OBLIGATORIO. Tu IP publica en formato CIDR /32 (ej. 88.1.2.3/32) para SSH y PentAGI.
+      Averiguala con: curl -s https://amazonaws.com
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: corp-lab
+    Description: Nombre de un Key Pair YA EXISTENTE en AWS (por defecto corp-labo).
+
+  InstanceType:
+    Type: String
+    Default: c5.2xlarge
+    AllowedValues:
+      - c5.2xlarge
+    Description: Atacante en c5.2xlarge fijo (8 vCPU, lo mejor para CPU en PX).
+
+  VolumeSize:
+    Type: Number
+    Default: 100
+    MinValue: 50
+    MaxValue: 500
+    Description: Tamano del disco raiz en GB (gp3).
+
+  AmiUbuntu2204:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+    Description: AMI de Ubuntu 22.04 (resuelta via SSM) — NO CAMBIAR.
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  RECURSOS
+# ──────────────────────────────────────────────────────────────────────────────
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.100.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: pentest-lab-vpc
+
+  SubnetPublic:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.100.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: pentest-lab-public-subnet
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: pentest-lab-igw
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RTPublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: pentest-lab-public-rt
+
+  RoutePublicInternet:
+    Type: AWS::EC2::Route
+    DependsOn: IGWAttachment
+    Properties:
+      RouteTableId: !Ref RTPublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RTAssocPublic:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublic
+      RouteTableId: !Ref RTPublic
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG pentest-lab (ABIERTO TOTAL - Cualquier origen, puerto y protocolo)
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: "-1"          # "-1" significa TODOS los protocolos (TCP, UDP, ICMP, etc.)
+          CidrIp: 0.0.0.0/0          # Permite el acceso desde cualquier IP del mundo
+          Description: Apertura total de entrada para pruebas de laboratorio
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+          Description: Salida libre (descargas, repositorios, LLM APIs)
+      Tags:
+        - Key: Name
+          Value: pentest-lab-sg
+
+  InstanceKaliAI:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiUbuntu2204
+      KeyName: !Ref KeyName
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 2
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: "true"
+          DeleteOnTermination: true
+          SubnetId: !Ref SubnetPublic
+          GroupSet:
+            - !GetAtt SecurityGroup.GroupId
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            Encrypted: true
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # Unicamente actualizar la lista de paquetes disponibles
+          apt-get update -y
+      Tags:
+        - Key: Name
+          Value: PentAGI
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  OUTPUTS
+# ──────────────────────────────────────────────────────────────────────────────
+Outputs:
+
+  PublicIP:
+    Description: IP publica de la instancia PentAGI
+    Value: !GetAtt InstanceKaliAI.PublicIp
+
+  SSHCommandUbuntu:
+    Description: Redireccion de conexion SSH directa al host
+    Value: !Sub 'ssh -i ${KeyName}.pem ubuntu@${InstanceKaliAI.PublicIp}'
+
+  PentAGIURL:
+    Description: Enlace de acceso para PentAGI
+    Value: !Sub 'https://${InstanceKaliAI.PublicIp}:8443'
