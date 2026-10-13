@@ -277,7 +277,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-nginx-1 }
+        - { Key: Name, Value: web-nginx-2 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -301,7 +301,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 25, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-nginx-2-wordpress }
+        - { Key: Name, Value: web-wordpress }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -325,7 +325,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-apache-php }
+        - { Key: Name, Value: web-apache }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -411,9 +411,9 @@ Outputs:
 
   WebNginx1Ip:
     Value: !GetAtt WebNginx1.PublicIp
-  WordpressIp:
+  WebNginx2Ip:
     Value: !GetAtt WebNginx2.PublicIp
-  WordpressIp:
+  WebNginx3Ip:
     Value: !GetAtt WebNginx3.PublicIp
   WebApacheIp:
     Value: !GetAtt WebApache.PublicIp
