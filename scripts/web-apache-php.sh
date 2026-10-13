@@ -9,6 +9,12 @@ REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/h
 echo "==> Actualizando el sistema..."
 dnf -y update
 
+# --- AJUSTE CRÍTICO 1: Configurar SELinux en modo permisivo ---
+# Evita que las políticas de seguridad del sistema bloqueen la ejecución de comandos (RCE) en PHP
+if command -v setenforce >/dev/null 2>&1; then
+    sudo setenforce 0 || true
+fi
+
 echo "==> Instalando dependencias web (sin forzar el paquete curl en AL2023)..."
 # Eliminamos 'curl' de la lista de instalación ya que curl-minimal está preinstalado en el sistema
 dnf -y install httpd php php-mysqlnd
@@ -36,9 +42,13 @@ if [ ! -s /var/www/html/index.php ]; then
 EOF
 fi
 
+# --- AJUSTE CRÍTICO 2: Preparación del entorno de subidas y permisos ---
+# Forzamos la creación del directorio de destino y aplicamos los permisos adecuados
+mkdir -p /var/www/html/uploads
 echo "==> Ajustando permisos de la carpeta web para Apache..."
 chown -R apache:apache /var/www/html
 chmod -R 755 /var/www/html
+chmod 777 /var/www/html/uploads  # Garantiza que el formulario PHP pueda escribir sin importar la máscara
 
 echo "==> Iniciando y habilitando el servicio de Apache..."
 systemctl enable --now httpd
