@@ -1,5 +1,34 @@
 <?php
-// index.php - Laboratories Corporation TAI (Biomedicine & AI)
+// =========================================================================
+// LÓGICA VULNERABLE PARA LABORATORIO DE PENTESTING
+// =========================================================================
+
+// 1. Simulación de Vulnerabilidad LFI (Inclusión de Archivos Locales)
+if (isset($_GET['page'])) {
+    $file = $_GET['page'];
+    // VULNERABILIDAD CRÍTICA: No hay sanitización de rutas. Permite Directory Traversal.
+    include($file); 
+}
+
+// 2. Simulación de Vulnerabilidad de Subida Insegura de Archivos (RCE via PHP)
+$upload_message = "";
+if (isset($_POST['upload'])) {
+    $target_dir = "uploads/";
+    
+    // Crear el directorio si no existe (requiere permisos de escritura en la carpeta)
+    if (!file_exists($target_dir)) {
+        @mkdir($target_dir, 0777, true);
+    }
+
+    $target_file = $target_dir . basename($_FILES["sequencing_file"]["name"]);
+
+    // VULNERABILIDAD CRÍTICA: No se valida la extensión (.php) ni el tipo MIME.
+    if (move_uploaded_file($_FILES["sequencing_file"]["tmp_name"], $target_file)) {
+        $upload_message = "<span style='color: #34D399;'>Archivo subido con éxito a: " . htmlspecialchars($target_file) . "</span>";
+    } else {
+        $upload_message = "<span style='color: #EF4444;'>Error en el servidor al procesar la subida. Verifica los permisos de la carpeta.</span>";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
