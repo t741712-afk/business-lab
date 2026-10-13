@@ -253,31 +253,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-nginx-1 }
-        - { Key: Zone, Value: dmz }
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          exec > /var/log/bootstrap.log 2>&1
-          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-nginx.sh" -o /tmp/p.sh && break; sleep 15; done
-          chmod +x /tmp/p.sh; SITE=corp-portal bash /tmp/p.sh
-
-  # --- Web 2 Nginx (Ubuntu) -----------------------------------------------
-  WebNginx2:
-    Type: AWS::EC2::Instance
-    Properties:
-      InstanceType: t3.small
-      ImageId: !Ref AmiUbuntu
-      KeyName: !Ref KeyName
-      SubnetId: !Ref PublicSubnet
-      PrivateIpAddress: 10.0.0.32
-      SecurityGroupIds: [!Ref DmzSg]
-      MetadataOptions: { HttpTokens: required }
-      BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
-      Tags:
-        - { Key: Name, Value: web-nginx-2 }
+        - { Key: Name, Value: web-nginx-1-intranet }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -287,14 +263,14 @@ Resources:
           chmod +x /tmp/p.sh; SITE=corp-portal bash /tmp/p.sh
 
   # --- WordPress (Ubuntu) -----------------------------------
-  WebNginx3:
+  WebWordpress:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.small
       ImageId: !Ref AmiUbuntu
       KeyName: !Ref KeyName
       SubnetId: !Ref PublicSubnet
-      PrivateIpAddress: 10.0.0.33
+      PrivateIpAddress: 10.0.0.32
       SecurityGroupIds: [!Ref DmzSg]
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
@@ -311,7 +287,31 @@ Resources:
           chmod +x /tmp/p.sh; bash /tmp/p.sh
 
   # --- Web 3 Apache + PHP (Amazon Linux) ----------------------------------
-  WebApache:
+  WebApache1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      PrivateIpAddress: 10.0.0.33
+      SecurityGroupIds: [!Ref DmzSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: web-apache-1-public }
+        - { Key: Zone, Value: dmz }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-apache-php.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # --- Web 4 Apache + PHP (Amazon Linux) ----------------------------------
+  WebApache2:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.small
@@ -325,7 +325,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-apache }
+        - { Key: Name, Value: web-apache-2-public }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -334,7 +334,7 @@ Resources:
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/web-apache-php.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
 
-  # --- Web 4 IIS (Windows) ------------------------------------------------
+  # --- Web 5 IIS (Windows) ------------------------------------------------
   WebIis:
     Type: AWS::EC2::Instance
     Properties:
@@ -411,12 +411,12 @@ Outputs:
 
   WebNginx1Ip:
     Value: !GetAtt WebNginx1.PublicIp
-  WebNginx2Ip:
-    Value: !GetAtt WebNginx2.PublicIp
-  WebNginx3Ip:
-    Value: !GetAtt WebNginx3.PublicIp
-  WebApacheIp:
-    Value: !GetAtt WebApache.PublicIp
+  WebWordpressIp:
+    Value: !GetAtt WebWordpress.PublicIp
+  WebApache1Ip:
+    Value: !GetAtt WebApache1.PublicIp
+  WebApache2Ip:
+    Value: !GetAtt WebApache2.PublicIp
   WebIisIp:
     Value: !GetAtt WebIis.PublicIp
   LoadBalancerIp:

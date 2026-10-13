@@ -21,8 +21,8 @@ frontend http_in
     stats uri /haproxy?stats
 backend web_farm
     balance roundrobin
-    server web1 10.0.0.31:80 check
-    server web2 10.0.0.32:80 check
+    server web1 10.0.0.33:80 check
+    server web2 10.0.0.34:80 check
 EOF
 systemctl enable --now haproxy
 echo "haproxy ready" > /var/log/prov.done
