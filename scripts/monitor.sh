@@ -81,8 +81,9 @@ scrape_configs:
           - http://10.0.0.20         # LB HAProxy
           - http://10.0.0.31         # nginx-1
           - http://10.0.0.32         # wordpress
-          - http://10.0.0.33         # apache-php
-          - http://10.0.0.34         # IIS
+          - http://10.0.0.33         # apache-php-1
+          - http://10.0.0.34         # apache-php-2
+          - http://10.0.0.35         # Web IIS
           - http://10.0.1.11:8080    # tomcat
           - http://10.0.1.12:3000    # node API
           - http://10.0.1.13         # dotnet/IIS
@@ -112,6 +113,7 @@ scrape_configs:
     static_configs:
       - targets:
           - 10.0.0.10:22       # bastion ssh
+          - 10.0.0.75:22       # SG
           - 10.0.2.11:3306     # mysql
           - 10.0.2.12:5432     # postgres
           - 10.0.2.13:1433     # mssql
@@ -145,6 +147,8 @@ scrape_configs:
           - 10.0.0.32
           - 10.0.0.33
           - 10.0.0.34
+          - 10.0.0.35
+          - 10.0.0.75
           - 10.0.1.11
           - 10.0.1.12
           - 10.0.1.13
