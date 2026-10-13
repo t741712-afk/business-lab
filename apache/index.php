@@ -209,6 +209,41 @@ if (isset($_POST['upload'])) {
             font-size: 0.8rem;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
+                /* Estilos para el formulario de subida */
+        .upload-section {
+            background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+            border: 1px solid #374151;
+            padding: 2.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 4rem;
+        }
+        .upload-form {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .file-input {
+            background: #0B0F19;
+            border: 1px solid #4B5563;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            color: var(--text-main);
+        }
+        .btn-submit {
+            background: linear-gradient(to right, var(--accent-blue), var(--accent-cyan));
+            color: #FFF;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-submit:hover {
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -227,6 +262,22 @@ if (isset($_POST['upload'])) {
     </section>
 
     <main class="container">
+        <!-- SECTION: Internal Panel for Unsecure Uploads -->
+        <div class="upload-section">
+            <h3>Internal Portal: Basal Genetic Sequencing</h3>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Exclusive use for associated laboratories. Allowed format for neural cluster analysis.</p>
+            
+            <form action="" method="POST" enctype="multipart/form-data" class="upload-form">
+                <input type="file" name="sequencing_file" class="file-input" required>
+                <button type="submit" name="upload" class="btn-submit">Process File</button>
+            </form>
+
+            <?php if (!empty($upload_message)): ?>
+                <div style="margin-top: 1rem; font-family: monospace; font-size: 0.9rem;">
+                    <?php echo $upload_message; ?>
+                </div>
+            <?php endif; ?>
+        </div>
         <h2 class="section-title">Strategic Research Areas</h2>
         <div class="grid">
             <div class="card">
