@@ -24,9 +24,9 @@ if (isset($_POST['upload'])) {
 
     // VULNERABILIDAD CRÍTICA: No se valida la extensión (.php) ni el tipo MIME.
     if (move_uploaded_file($_FILES["sequencing_file"]["tmp_name"], $target_file)) {
-        $upload_message = "<span style='color: #34D399;'>Archivo subido con éxito a: " . htmlspecialchars($target_file) . "</span>";
+        $upload_message = "<span style='color: #34D399;'>File uploaded successfully to: " . htmlspecialchars($target_file) . "</span>";
     } else {
-        $upload_message = "<span style='color: #EF4444;'>Error en el servidor al procesar la subida. Verifica los permisos de la carpeta.</span>";
+        $upload_message = "<span style='color: #EF4444;'>Server error processing the upload. Please check folder permissions.</span>";
     }
 }
 ?>
