@@ -1,71 +1,61 @@
 #!/bin/bash
-# Frontal WordPress (Ubuntu 22.04): nginx + php-fpm + mariadb local + WordPress.
-set -eux
+# CI: Wordpress Vulnerable (DockerLabs) - Parcheo e Inyección de Puertos Directa
+set -x
+set -e
 export DEBIAN_FRONTEND=noninteractive
 
+echo "==> Instalando dependencias básicas del sistema..."
 apt-get update -y
-apt-get install -y nginx mariadb-server php-fpm php-mysql php-curl php-gd php-xml php-mbstring curl
+apt-get install -y docker.io wget unzip
 
-systemctl enable --now mariadb
+echo "==> Asegurando y arrancando el servicio de Docker..."
+systemctl enable --now docker
 
-DBPASS="WpLab#2026"
-WP_ADMIN="admin"
-WP_ADMIN_PASS="WpAdmin#2026"
-WP_TITLE="Business Lab WordPress"
-WP_URL="http://10.0.0.32"
+echo "==> Creando directorio de trabajo..."
+WORKDIR="/opt/wordpress-lab"
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
 
-mysql -e "CREATE DATABASE IF NOT EXISTS wordpress;"
-mysql -e "CREATE USER IF NOT EXISTS 'wp'@'localhost' IDENTIFIED BY '${DBPASS}';"
-mysql -e "GRANT ALL ON wordpress.* TO 'wp'@'localhost'; FLUSH PRIVILEGES;"
+echo "==> Descargando el laboratorio de DockerLabs..."
+ZIP_URL="https://gestion-maquinas.dockerlabs.es/dl/pressenter.zip"
+wget -q --show-progress "$ZIP_URL" -O pressenter.zip
 
-# Descargar WordPress
-cd /var/www
-rm -rf /var/www/wordpress
-curl -fsSL https://wordpress.org/latest.tar.gz | tar xz
-cp -r wordpress/* /var/www/html/
+echo "==> Descomprimiendo el paquete del CTF..."
+unzip -o pressenter.zip
 
-cd /var/www/html
-cp wp-config-sample.php wp-config.php
-sed -i "s/database_name_here/wordpress/; s/username_here/wp/; s/password_here/${DBPASS}/" wp-config.php
+# Localizamos el script auto_deploy.sh en el directorio
+SCRIPT_PATH=$(find . -name "auto_deploy.sh" | head -n 1)
 
-chown -R www-data:www-data /var/www/html
-
-PHPVER=$(ls /run/php/ | grep -oP 'php\K[0-9.]+' | head -1)
-
-cat > /etc/nginx/sites-available/default <<EOF
-server {
-  listen 80 default_server;
-  root /var/www/html;
-  index index.php index.html;
-
-  location / {
-    try_files \$uri \$uri/ /index.php?\$args;
-  }
-
-  location ~ \.php\$ {
-    include snippets/fastcgi-php.conf;
-    fastcgi_pass unix:/run/php/php${PHPVER}-fpm.sock;
-  }
-}
-EOF
-
-systemctl enable --now php${PHPVER}-fpm nginx
-systemctl restart nginx
-
-# Instalar WP-CLI
-curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
-  -o /usr/local/bin/wp
-chmod +x /usr/local/bin/wp
-
-# Instalar WordPress si todavía no está instalado
-if ! sudo -u www-data wp core is-installed --path=/var/www/html; then
-  sudo -u www-data wp core install \
-    --path=/var/www/html \
-    --url="${WP_URL}" \
-    --title="${WP_TITLE}" \
-    --admin_user="${WP_ADMIN}" \
-    --admin_password="${WP_ADMIN_PASS}" \
-    --admin_email="admin@business-lab.local"
+if [ -z "$SCRIPT_PATH" ]; then
+    echo "ERROR: No se encontró el archivo auto_deploy.sh dentro del ZIP."
+    exit 1
 fi
 
-echo "wordpress ready" > /var/log/prov.done
+SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+cd "$SCRIPT_DIR"
+
+echo "==> Modificando la línea de despliegue en auto_deploy.sh de forma dinámica..."
+# Buscamos la línea exacta 'docker run -d --name $CONTAINER_NAME $IMAGE_NAME'
+# e inyectamos los mapeos requeridos: 8080 de la VM al 80 del contenedor, y 2222 de la VM al 22 del contenedor.
+TARGET_RUN="docker run -d --name \$CONTAINER_NAME \$IMAGE_NAME"
+MODIFIED_RUN="docker run -d -p 80:80 -p 2222:22 --name \$CONTAINER_NAME \$IMAGE_NAME"
+
+sed -i "s|$TARGET_RUN|$MODIFIED_RUN|g" auto_deploy.sh
+
+echo "==> Localizando la imagen del laboratorio empaquetada..."
+TAR_FILE=$(find . -name "*.tar" | head -n 1 | xargs basename)
+
+if [ -z "$TAR_FILE" ]; then
+    echo "ERROR: No se encontró el archivo de la imagen (.tar) en el directorio."
+    exit 1
+fi
+
+echo "==> Levantando la máquina vulnerable en segundo plano (Persistent Run)..."
+# Ejecutamos el script redirigiendo la salida a un log y en segundo plano (&).
+# Esto evita que el bucle "while true" del script original bloquee tu aprovisionamiento.
+sudo bash auto_deploy.sh "$TAR_FILE" > /var/log/wordpress_deploy.log 2>&1 &
+
+# Damos un breve margen de tiempo para que Docker cargue la imagen e inicie el proceso
+sleep 5
+
+echo "Wordpress vulnerable desplegado con éxito. Puertos accesibles desde la VM: 80 y 2222." > /var/log/prov.done
