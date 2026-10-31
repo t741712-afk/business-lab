@@ -155,6 +155,39 @@ Resources:
         - Key: Name
           Value: PentAGI
 
+  InstanceKaliAI2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiUbuntu2204
+      KeyName: !Ref KeyName
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 2
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: "true"
+          DeleteOnTermination: true
+          SubnetId: !Ref SubnetPublic
+          GroupSet:
+            - !GetAtt SecurityGroup.GroupId
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            Encrypted: true
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # Unicamente actualizar la lista de paquetes disponibles
+          apt-get update -y
+      Tags:
+        - Key: Name
+          Value: PentAGI2
+
 # ──────────────────────────────────────────────────────────────────────────────
 #  OUTPUTS
 # ──────────────────────────────────────────────────────────────────────────────
@@ -163,6 +196,9 @@ Outputs:
   PublicIP:
     Description: IP publica de la instancia PentAGI
     Value: !GetAtt InstanceKaliAI.PublicIp
+  PublicIP2:
+    Description: IP publica de la instancia PentAGI2
+    Value: !GetAtt InstanceKaliAI2.PublicIp
 
   SSHCommandUbuntu:
     Description: Redireccion de conexion SSH directa al host

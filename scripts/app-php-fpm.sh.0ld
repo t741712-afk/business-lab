@@ -1,0 +1,1237 @@
+#!/usr/bin/env bash
+# TAI Order Management Portal
+# Platform: Amazon Linux 2023
+# Stack: Nginx + PHP-FPM + SQLite
+# Run: sudo bash deploy_orders.sh
+#
+# Includes:
+# - English-language responsive order management interface
+# - 75 initial demonstration orders
+# - Persistent database storage
+# - Create orders and assign unique order numbers
+# - Search by order number, customer, email or product
+# - Filter by status and date range
+# - Update order status
+# - Order dates, record IDs, quantities, amounts and timestamps
+# - Dashboard statistics
+# - CSRF protection, input validation and SQL prepared statements
+#
+# No external database server is required.
+
+set -Eeuo pipefail
+set -x
+
+if [[ "${EUID}" -ne 0 ]]; then
+    echo "ERROR: Run this script with sudo or as root."
+    exit 1
+fi
+
+APP_DIR="/usr/share/nginx/html"
+DB_DIR="/var/lib/order-portal"
+DB_FILE="${DB_DIR}/orders.sqlite"
+PHP_FILE="${APP_DIR}/index.php"
+
+dnf -y update
+dnf -y install nginx php-fpm php-sqlite3 php-mbstring curl-minimal
+
+mkdir -p "${APP_DIR}" "${DB_DIR}"
+chmod 750 "${DB_DIR}"
+
+# Remove the default Nginx virtual host to prevent duplicate default_server errors.
+rm -f /etc/nginx/conf.d/default.conf
+
+cat > "${PHP_FILE}" <<'PHP'
+<?php
+declare(strict_types=1);
+
+session_start();
+
+const DB_FILE = '/var/lib/order-portal/orders.sqlite';
+
+const ORDER_STATUSES = [
+    'Pending',
+    'Approved',
+    'Processing',
+    'Shipped',
+    'Delivered',
+    'Cancelled'
+];
+
+function db(): PDO
+{
+    static $pdo = null;
+
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+
+    $pdo = new PDO('sqlite:' . DB_FILE, null, null, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false
+    ]);
+
+    $pdo->exec('PRAGMA journal_mode=WAL');
+    $pdo->exec('PRAGMA busy_timeout=5000');
+
+    return $pdo;
+}
+
+function h(mixed $value): string
+{
+    return htmlspecialchars(
+        (string)$value,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+}
+
+function csrfToken(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['csrf_token'];
+}
+
+function verifyCsrf(): void
+{
+    $token = $_POST['csrf_token'] ?? '';
+
+    if (
+        !is_string($token) ||
+        !hash_equals(csrfToken(), $token)
+    ) {
+        http_response_code(403);
+        exit('Invalid request token. Please reload the page and try again.');
+    }
+}
+
+function redirectHome(string $message = ''): never
+{
+    $url = '/';
+
+    if ($message !== '') {
+        $url .= '?notice=' . rawurlencode($message);
+    }
+
+    header('Location: ' . $url, true, 303);
+    exit;
+}
+
+function validDate(string $date): bool
+{
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+    return $parsed !== false && $parsed->format('Y-m-d') === $date;
+}
+
+function initializeDatabase(): void
+{
+    $pdo = db();
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_number TEXT NOT NULL UNIQUE,
+            customer_name TEXT NOT NULL,
+            customer_email TEXT NOT NULL DEFAULT "",
+            item_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            amount REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT "Pending"
+                CHECK(status IN (
+                    "Pending",
+                    "Approved",
+                    "Processing",
+                    "Shipped",
+                    "Delivered",
+                    "Cancelled"
+                )),
+            order_date TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT "",
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )'
+    );
+
+    $count = (int)$pdo->query(
+        'SELECT COUNT(*) FROM orders'
+    )->fetchColumn();
+
+    // Only seed a completely empty database. Existing orders are preserved.
+    if ($count > 0) {
+        return;
+    }
+
+    $customers = [
+        ['Alex Morgan', 'alex.morgan@example.com'],
+        ['Jordan Taylor', 'jordan.taylor@example.com'],
+        ['Casey Parker', 'casey.parker@example.com'],
+        ['Riley Bennett', 'riley.bennett@example.com'],
+        ['Morgan Reed', 'morgan.reed@example.com'],
+        ['Jamie Collins', 'jamie.collins@example.com'],
+        ['Taylor Brooks', 'taylor.brooks@example.com'],
+        ['Avery Hayes', 'avery.hayes@example.com'],
+        ['Cameron Price', 'cameron.price@example.com'],
+        ['Drew Foster', 'drew.foster@example.com'],
+        ['Quinn Murphy', 'quinn.murphy@example.com'],
+        ['Skyler James', 'skyler.james@example.com'],
+        ['Reese Cooper', 'reese.cooper@example.com'],
+        ['Peyton Ward', 'peyton.ward@example.com'],
+        ['Rowan Kelly', 'rowan.kelly@example.com']
+    ];
+
+    $items = [
+        'Laboratory Consumables',
+        'Safety Equipment',
+        'Sample Collection Kit',
+        'Protective Gloves',
+        'Calibration Supplies',
+        'Testing Reagents',
+        'Storage Containers',
+        'Diagnostic Accessories',
+        'Cleaning Supplies',
+        'Laboratory Glassware',
+        'Pipette Set',
+        'Protective Workwear',
+        'Specimen Transport Kit',
+        'Quality Control Materials',
+        'Research Supplies'
+    ];
+
+    $statuses = [
+        'Approved',
+        'Pending',
+        'Shipped',
+        'Processing',
+        'Delivered',
+        'Cancelled'
+    ];
+
+    $insert = $pdo->prepare(
+        'INSERT INTO orders (
+            order_number,
+            customer_name,
+            customer_email,
+            item_name,
+            quantity,
+            amount,
+            status,
+            order_date,
+            notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    $pdo->beginTransaction();
+
+    try {
+        for ($i = 1; $i <= 75; $i++) {
+            $customer = $customers[($i - 1) % count($customers)];
+            $item = $items[($i - 1) % count($items)];
+            $status = $statuses[($i - 1) % count($statuses)];
+
+            $date = (new DateTimeImmutable('today'))
+                ->modify('-' . (($i * 3) % 120) . ' days')
+                ->format('Y-m-d');
+
+            $quantity = (($i - 1) % 8) + 1;
+            $unitPrice = 18.50 + (($i * 7.35) % 480);
+            $amount = round($unitPrice * $quantity, 2);
+
+            $insert->execute([
+                'ORD-' . (1000 + $i),
+                $customer[0],
+                $customer[1],
+                $item,
+                $quantity,
+                $amount,
+                $status,
+                $date,
+                'Demonstration order created during initial deployment.'
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $e;
+    }
+}
+
+try {
+    initializeDatabase();
+} catch (Throwable $e) {
+    error_log('Order portal database error: ' . $e->getMessage());
+    http_response_code(500);
+    exit(
+        'The order portal could not initialize its database. ' .
+        'Check the PHP-FPM logs and database permissions.'
+    );
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+
+    $action = (string)($_POST['action'] ?? '');
+
+    if ($action === 'create') {
+        $customer = trim((string)($_POST['customer_name'] ?? ''));
+        $email = trim((string)($_POST['customer_email'] ?? ''));
+        $item = trim((string)($_POST['item_name'] ?? ''));
+        $quantity = filter_var(
+            $_POST['quantity'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+        $amount = filter_var(
+            $_POST['amount'] ?? null,
+            FILTER_VALIDATE_FLOAT
+        );
+        $date = trim((string)($_POST['order_date'] ?? ''));
+        $status = (string)($_POST['status'] ?? 'Pending');
+        $notes = trim((string)($_POST['notes'] ?? ''));
+
+        $valid =
+            $customer !== '' &&
+            mb_strlen($customer) <= 120 &&
+            $item !== '' &&
+            mb_strlen($item) <= 160 &&
+            is_int($quantity) &&
+            $quantity >= 1 &&
+            $quantity <= 100000 &&
+            $amount !== false &&
+            is_numeric($amount) &&
+            (float)$amount >= 0 &&
+            (float)$amount <= 999999999 &&
+            validDate($date) &&
+            in_array($status, ORDER_STATUSES, true) &&
+            mb_strlen($email) <= 254 &&
+            ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL)) &&
+            mb_strlen($notes) <= 2000;
+
+        if (!$valid) {
+            redirectHome('Please check the order details and try again.');
+        }
+
+        // Calculate the next order number inside a transaction to avoid
+        // duplicate IDs when two orders are submitted at nearly the same time.
+        $pdo = db();
+        $pdo->beginTransaction();
+
+        try {
+            $next = (int)$pdo->query(
+                "SELECT COALESCE(
+                    MAX(CAST(SUBSTR(order_number, 5) AS INTEGER)),
+                    1000
+                ) + 1
+                FROM orders
+                WHERE order_number LIKE 'ORD-%'"
+            )->fetchColumn();
+
+            $insert = $pdo->prepare(
+                'INSERT INTO orders (
+                    order_number,
+                    customer_name,
+                    customer_email,
+                    item_name,
+                    quantity,
+                    amount,
+                    status,
+                    order_date,
+                    notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+
+            $insert->execute([
+                'ORD-' . $next,
+                $customer,
+                $email,
+                $item,
+                $quantity,
+                round((float)$amount, 2),
+                $status,
+                $date,
+                $notes
+            ]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            error_log('Order creation failed: ' . $e->getMessage());
+            redirectHome('The order could not be created. Please try again.');
+        }
+
+        redirectHome('Order created successfully.');
+    }
+
+    if ($action === 'update_status') {
+        $id = filter_var(
+            $_POST['id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+        $status = (string)($_POST['status'] ?? '');
+
+        if (
+            !is_int($id) ||
+            $id < 1 ||
+            !in_array($status, ORDER_STATUSES, true)
+        ) {
+            redirectHome('Invalid status update.');
+        }
+
+        $stmt = db()->prepare(
+            'UPDATE orders
+             SET status = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?'
+        );
+
+        $stmt->execute([$status, $id]);
+
+        redirectHome(
+            $stmt->rowCount() > 0
+                ? 'Order status updated.'
+                : 'No order changes were made.'
+        );
+    }
+
+    redirectHome('Unknown action.');
+}
+
+$q = trim((string)($_GET['q'] ?? ''));
+$statusFilter = trim((string)($_GET['status'] ?? ''));
+$dateFrom = trim((string)($_GET['date_from'] ?? ''));
+$dateTo = trim((string)($_GET['date_to'] ?? ''));
+
+$where = [];
+$params = [];
+
+if ($q !== '') {
+    $where[] = '(
+        order_number LIKE ? OR
+        customer_name LIKE ? OR
+        customer_email LIKE ? OR
+        item_name LIKE ?
+    )';
+
+    $like = '%' . $q . '%';
+    array_push($params, $like, $like, $like, $like);
+}
+
+if (in_array($statusFilter, ORDER_STATUSES, true)) {
+    $where[] = 'status = ?';
+    $params[] = $statusFilter;
+}
+
+if ($dateFrom !== '' && validDate($dateFrom)) {
+    $where[] = 'order_date >= ?';
+    $params[] = $dateFrom;
+}
+
+if ($dateTo !== '' && validDate($dateTo)) {
+    $where[] = 'order_date <= ?';
+    $params[] = $dateTo;
+}
+
+$sqlWhere = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+$stmt = db()->prepare(
+    'SELECT * FROM orders' . $sqlWhere . ' ORDER BY id DESC'
+);
+$stmt->execute($params);
+$orders = $stmt->fetchAll();
+
+$statusRows = db()->query(
+    'SELECT status, COUNT(*) AS total
+     FROM orders
+     GROUP BY status'
+)->fetchAll();
+
+$counts = array_fill_keys(ORDER_STATUSES, 0);
+
+foreach ($statusRows as $row) {
+    $counts[$row['status']] = (int)$row['total'];
+}
+
+$totalOrders = (int)db()->query(
+    'SELECT COUNT(*) FROM orders'
+)->fetchColumn();
+
+$pendingOrders = $counts['Pending'];
+$activeOrders = $counts['Approved']
+    + $counts['Processing']
+    + $counts['Shipped'];
+$deliveredOrders = $counts['Delivered'];
+
+$notice = trim((string)($_GET['notice'] ?? ''));
+$today = date('Y-m-d');
+
+?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Order Management | TAI Operations</title>
+<style>
+:root{
+ --bg:#0b0f19;
+ --panel:#111827;
+ --panel2:#151f30;
+ --border:#263347;
+ --text:#e7eef9;
+ --muted:#8ea0b8;
+ --blue:#3b82f6;
+ --cyan:#06b6d4;
+ --green:#34d399;
+ --yellow:#fbbf24;
+ --red:#fb7185;
+ --radius:16px
+}
+*{box-sizing:border-box}
+body{
+ margin:0;
+ background:radial-gradient(ellipse at 20% -15%,#142c4d 0,transparent 45%),var(--bg);
+ color:var(--text);
+ font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif
+}
+button,input,select,textarea{font:inherit}
+.topbar{
+ position:sticky;
+ top:0;
+ z-index:5;
+ background:rgba(11,15,25,.92);
+ backdrop-filter:blur(14px);
+ border-bottom:1px solid var(--border)
+}
+.topbar-inner{
+ max-width:1600px;
+ margin:auto;
+ padding:16px 26px;
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:18px
+}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.02em}
+.brand-mark{
+ display:grid;
+ place-items:center;
+ width:40px;
+ height:40px;
+ border-radius:12px;
+ background:linear-gradient(135deg,var(--blue),var(--cyan));
+ color:white;
+ font-size:18px;
+ box-shadow:0 8px 24px #06b6d429
+}
+.brand small{
+ display:block;
+ font-size:11px;
+ color:var(--muted);
+ font-weight:600;
+ letter-spacing:.13em;
+ text-transform:uppercase
+}
+.host{color:var(--muted);font-size:12px;text-align:right}
+.host strong{display:block;color:var(--text);font-size:13px;font-weight:600}
+main{max-width:1600px;margin:auto;padding:30px 26px 56px}
+.hero{
+ display:flex;
+ justify-content:space-between;
+ align-items:flex-end;
+ gap:24px;
+ margin-bottom:26px
+}
+.eyebrow{
+ color:var(--cyan);
+ font-size:11px;
+ font-weight:800;
+ letter-spacing:.16em;
+ text-transform:uppercase
+}
+h1{
+ font-size:clamp(28px,3.2vw,40px);
+ letter-spacing:-.04em;
+ line-height:1.12;
+ margin:8px 0 10px
+}
+.subtitle{color:var(--muted);margin:0;max-width:720px}
+.primary,.secondary{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ gap:8px;
+ border-radius:10px;
+ cursor:pointer;
+ text-decoration:none;
+ white-space:nowrap;
+ font-weight:750
+}
+.primary{
+ padding:11px 16px;
+ background:linear-gradient(110deg,var(--blue),#2563eb);
+ border:1px solid #5794ff;
+ color:white;
+ box-shadow:0 8px 22px #2563eb30
+}
+.primary:hover{filter:brightness(1.1)}
+.secondary{
+ padding:9px 13px;
+ border:1px solid var(--border);
+ background:#172235;
+ color:var(--text)
+}
+.stats{
+ display:grid;
+ grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:16px;
+ margin-bottom:24px
+}
+.stat,.panel{
+ background:linear-gradient(155deg,rgba(21,31,48,.96),rgba(17,24,39,.96));
+ border:1px solid var(--border);
+ border-radius:var(--radius);
+ box-shadow:0 12px 34px #00000016
+}
+.stat{padding:20px;min-width:0}
+.stat-head{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:12px;
+ color:var(--muted);
+ font-weight:650
+}
+.stat-icon{
+ display:grid;
+ place-items:center;
+ width:36px;
+ height:36px;
+ border-radius:10px;
+ background:#3b82f61a;
+ color:#69a7ff;
+ font-size:18px
+}
+.stat-value{
+ font-size:30px;
+ line-height:1.2;
+ font-weight:800;
+ letter-spacing:-.04em;
+ margin:15px 0 3px
+}
+.stat-note{font-size:12px;color:var(--muted)}
+.panel{overflow:hidden}
+.panel-head{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:16px;
+ padding:20px 22px;
+ border-bottom:1px solid var(--border)
+}
+.panel-head h2{font-size:16px;margin:0;letter-spacing:-.02em}
+.panel-head p{font-size:12px;color:var(--muted);margin:4px 0 0}
+.panel-body{padding:20px 22px}
+.filters{
+ display:grid;
+ grid-template-columns:minmax(200px,1.6fr) repeat(3,minmax(135px,1fr)) auto;
+ gap:10px;
+ align-items:end
+}
+.field label{
+ display:block;
+ color:var(--muted);
+ font-size:11px;
+ font-weight:750;
+ letter-spacing:.08em;
+ text-transform:uppercase;
+ margin:0 0 7px
+}
+.field input,.field select,.field textarea{
+ width:100%;
+ min-width:0;
+ background:#0b1220;
+ border:1px solid #2b3a50;
+ color:var(--text);
+ padding:10px 11px;
+ border-radius:9px;
+ outline:none
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+ border-color:var(--blue);
+ box-shadow:0 0 0 3px #3b82f626
+}
+.filter-actions{display:flex;gap:8px}
+.table-wrap{overflow:auto;width:100%}
+table{width:100%;border-collapse:collapse;min-width:1120px}
+thead{background:#0e1625}
+th{
+ text-align:left;
+ padding:13px 16px;
+ color:#91a3bc;
+ font-size:10px;
+ letter-spacing:.11em;
+ text-transform:uppercase;
+ white-space:nowrap
+}
+td{padding:15px 16px;border-top:1px solid #202d40;vertical-align:middle}
+tbody tr:hover{background:#ffffff04}
+.order-number{font-weight:800;color:#8cc5ff;white-space:nowrap}
+.customer{font-weight:700}
+.subtext{font-size:11px;color:var(--muted);margin-top:3px}
+.item-name{max-width:240px}
+.money{font-variant-numeric:tabular-nums;font-weight:750;white-space:nowrap}
+.pill{
+ display:inline-flex;
+ align-items:center;
+ gap:7px;
+ padding:5px 9px;
+ border-radius:99px;
+ font-size:11px;
+ font-weight:800;
+ white-space:nowrap;
+ border:1px solid transparent
+}
+.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.status-pending{color:#fbbf24;background:#fbbf2414;border-color:#fbbf2430}
+.status-approved{color:#60a5fa;background:#3b82f614;border-color:#3b82f630}
+.status-processing{color:#c4b5fd;background:#a78bfa14;border-color:#a78bfa30}
+.status-shipped{color:#22d3ee;background:#06b6d414;border-color:#06b6d430}
+.status-delivered{color:#34d399;background:#34d39914;border-color:#34d39930}
+.status-cancelled{color:#fb7185;background:#fb718514;border-color:#fb718530}
+.inline-form{display:flex;gap:6px;align-items:center}
+.inline-form select{
+ max-width:135px;
+ background:#0b1220;
+ color:var(--text);
+ border:1px solid var(--border);
+ padding:7px;
+ border-radius:8px
+}
+.inline-form button{
+ background:#1d3557;
+ color:#cfe4ff;
+ border:1px solid #2e527f;
+ border-radius:8px;
+ padding:7px 9px;
+ cursor:pointer
+}
+.notice{
+ padding:12px 15px;
+ margin-bottom:18px;
+ border-radius:10px;
+ background:#064e3b55;
+ border:1px solid #34d39955;
+ color:#a7f3d0
+}
+.empty{padding:42px 20px;text-align:center;color:var(--muted)}
+.footer{
+ display:flex;
+ justify-content:space-between;
+ gap:12px;
+ color:#64748b;
+ font-size:11px;
+ padding:22px 4px
+}
+dialog{
+ width:min(720px,calc(100% - 28px));
+ max-height:90vh;
+ overflow:auto;
+ background:#111b2b;
+ color:var(--text);
+ border:1px solid #35445b;
+ border-radius:18px;
+ padding:0;
+ box-shadow:0 30px 100px #0009
+}
+dialog::backdrop{background:#020617bb;backdrop-filter:blur(5px)}
+.modal-head{
+ padding:20px 24px;
+ border-bottom:1px solid var(--border);
+ display:flex;
+ justify-content:space-between;
+ align-items:center
+}
+.modal-head h2{margin:0;font-size:19px}
+.modal-content{padding:24px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.modal-grid .wide{grid-column:1/-1}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.close{border:0;background:transparent;color:var(--muted);font-size:24px;cursor:pointer}
+@media(max-width:1100px){
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+ .topbar-inner{padding:12px 16px}
+ .host{display:none}
+ main{padding:24px 14px 35px}
+ .hero{align-items:flex-start;flex-direction:column}
+ .stats{gap:10px}
+ .stat{padding:14px}
+ .stat-value{font-size:25px}
+ .panel-head,.panel-body{padding:16px}
+ .filters{grid-template-columns:1fr}
+ .filter-actions{width:100%}
+ .filter-actions>*{flex:1}
+ .modal-grid{grid-template-columns:1fr}
+ .modal-grid .wide{grid-column:auto}
+ .footer{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">↗</div>
+      <div>
+        TAI OPERATIONS
+        <small>Order Management Portal</small>
+      </div>
+    </div>
+    <div class="host">
+      APPLICATION SERVER
+      <strong><?= h(gethostname()) ?></strong>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Operations / Procurement</div>
+      <h1>Order Management</h1>
+      <p class="subtitle">
+        Track orders, review fulfilment status and create new requests
+        from one central workspace.
+      </p>
+    </div>
+    <button class="primary" type="button" onclick="openOrderDialog()">
+      ＋ Create New Order
+    </button>
+  </section>
+
+  <?php if ($notice !== ''): ?>
+    <div class="notice" role="status"><?= h($notice) ?></div>
+  <?php endif; ?>
+
+  <section class="stats" aria-label="Order overview">
+    <article class="stat">
+      <div class="stat-head">
+        <span>Total Orders</span><span class="stat-icon">▤</span>
+      </div>
+      <div class="stat-value"><?= number_format($totalOrders) ?></div>
+      <div class="stat-note">All orders recorded in the system</div>
+    </article>
+
+    <article class="stat">
+      <div class="stat-head">
+        <span>Pending Review</span><span class="stat-icon">◷</span>
+      </div>
+      <div class="stat-value"><?= number_format($pendingOrders) ?></div>
+      <div class="stat-note">Awaiting approval or action</div>
+    </article>
+
+    <article class="stat">
+      <div class="stat-head">
+        <span>In Progress</span><span class="stat-icon">↗</span>
+      </div>
+      <div class="stat-value"><?= number_format($activeOrders) ?></div>
+      <div class="stat-note">Approved, processing or shipped</div>
+    </article>
+
+    <article class="stat">
+      <div class="stat-head">
+        <span>Delivered</span><span class="stat-icon">✓</span>
+      </div>
+      <div class="stat-value"><?= number_format($deliveredOrders) ?></div>
+      <div class="stat-note">Orders marked as delivered</div>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>Orders Register</h2>
+        <p>
+          <?= number_format(count($orders)) ?> result<?= count($orders) === 1 ? '' : 's' ?>
+          · Most recently created orders first
+        </p>
+      </div>
+      <button class="secondary" type="button" onclick="openOrderDialog()">
+        ＋ New Order
+      </button>
+    </div>
+
+    <div class="panel-body">
+      <form class="filters" method="get" action="/">
+        <div class="field">
+          <label for="q">Search</label>
+          <input
+            id="q"
+            name="q"
+            value="<?= h($q) ?>"
+            placeholder="Order ID, customer or item"
+          >
+        </div>
+
+        <div class="field">
+          <label for="status">Order Status</label>
+          <select id="status" name="status">
+            <option value="">All statuses</option>
+            <?php foreach (ORDER_STATUSES as $s): ?>
+              <option value="<?= h($s) ?>" <?= $statusFilter === $s ? 'selected' : '' ?>>
+                <?= h($s) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="date_from">Date From</label>
+          <input id="date_from" type="date" name="date_from" value="<?= h($dateFrom) ?>">
+        </div>
+
+        <div class="field">
+          <label for="date_to">Date To</label>
+          <input id="date_to" type="date" name="date_to" value="<?= h($dateTo) ?>">
+        </div>
+
+        <div class="filter-actions">
+          <button class="primary" type="submit">Filter</button>
+          <a class="secondary" href="/">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Item / Product</th>
+            <th>Qty</th>
+            <th>Order Date</th>
+            <th>Total Amount</th>
+            <th>Status</th>
+            <th>Update Status</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php if (!$orders): ?>
+          <tr>
+            <td colspan="8">
+              <div class="empty">
+                No orders match your filters. Try another search or create a new order.
+              </div>
+            </td>
+          </tr>
+        <?php else: ?>
+          <?php foreach ($orders as $order): ?>
+            <?php $statusClass = 'status-' . strtolower((string)$order['status']); ?>
+            <tr>
+              <td>
+                <div class="order-number"><?= h($order['order_number']) ?></div>
+                <div class="subtext">Record #<?= (int)$order['id'] ?></div>
+              </td>
+
+              <td>
+                <div class="customer"><?= h($order['customer_name']) ?></div>
+                <?php if ($order['customer_email'] !== ''): ?>
+                  <div class="subtext"><?= h($order['customer_email']) ?></div>
+                <?php endif; ?>
+              </td>
+
+              <td>
+                <div class="item-name"><?= h($order['item_name']) ?></div>
+                <div class="subtext">
+                  Created <?= h(substr((string)$order['created_at'], 0, 10)) ?>
+                </div>
+              </td>
+
+              <td><?= number_format((int)$order['quantity']) ?></td>
+              <td><?= h($order['order_date']) ?></td>
+              <td class="money">$<?= number_format((float)$order['amount'], 2) ?></td>
+              <td>
+                <span class="pill <?= h($statusClass) ?>">
+                  <?= h($order['status']) ?>
+                </span>
+              </td>
+
+              <td>
+                <form method="post" class="inline-form">
+                  <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
+                  <input type="hidden" name="action" value="update_status">
+                  <input type="hidden" name="id" value="<?= (int)$order['id'] ?>">
+
+                  <select name="status" aria-label="New status for <?= h($order['order_number']) ?>">
+                    <?php foreach (ORDER_STATUSES as $s): ?>
+                      <option value="<?= h($s) ?>" <?= $order['status'] === $s ? 'selected' : '' ?>>
+                        <?= h($s) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+
+                  <button type="submit">Save</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>TAI Operations · Internal Order Management</span>
+    <span>
+      Server: <?= h(gethostname()) ?> · Local time: <?= h(date('Y-m-d H:i:s')) ?>
+    </span>
+  </footer>
+</main>
+
+<dialog id="orderDialog" aria-labelledby="dialogTitle">
+  <div class="modal-head">
+    <div>
+      <div class="eyebrow">Order Register</div>
+      <h2 id="dialogTitle">Create New Order</h2>
+    </div>
+    <button
+      class="close"
+      type="button"
+      aria-label="Close dialog"
+      onclick="closeOrderDialog()"
+    >×</button>
+  </div>
+
+  <div class="modal-content">
+    <form method="post" id="createOrderForm">
+      <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
+      <input type="hidden" name="action" value="create">
+
+      <div class="modal-grid">
+        <div class="field">
+          <label for="customer_name">Customer Name *</label>
+          <input id="customer_name" name="customer_name" maxlength="120" required>
+        </div>
+
+        <div class="field">
+          <label for="customer_email">Customer Email</label>
+          <input id="customer_email" name="customer_email" type="email" maxlength="254">
+        </div>
+
+        <div class="field wide">
+          <label for="item_name">Item / Product *</label>
+          <input id="item_name" name="item_name" maxlength="160" required>
+        </div>
+
+        <div class="field">
+          <label for="quantity">Quantity *</label>
+          <input
+            id="quantity"
+            name="quantity"
+            type="number"
+            min="1"
+            max="100000"
+            value="1"
+            required
+          >
+        </div>
+
+        <div class="field">
+          <label for="amount">Total Amount (USD) *</label>
+          <input
+            id="amount"
+            name="amount"
+            type="number"
+            min="0"
+            max="999999999"
+            step="0.01"
+            required
+          >
+        </div>
+
+        <div class="field">
+          <label for="order_date">Order Date *</label>
+          <input
+            id="order_date"
+            name="order_date"
+            type="date"
+            value="<?= h($today) ?>"
+            required
+          >
+        </div>
+
+        <div class="field">
+          <label for="new_status">Initial Status</label>
+          <select id="new_status" name="status">
+            <?php foreach (ORDER_STATUSES as $s): ?>
+              <option value="<?= h($s) ?>" <?= $s === 'Pending' ? 'selected' : '' ?>>
+                <?= h($s) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="field wide">
+          <label for="notes">Notes</label>
+          <textarea
+            id="notes"
+            name="notes"
+            rows="3"
+            maxlength="2000"
+            placeholder="Optional order notes or delivery instructions"
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary" type="button" onclick="closeOrderDialog()">Cancel</button>
+        <button class="primary" type="submit">Create Order</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+const dialog = document.getElementById('orderDialog');
+
+function openOrderDialog() {
+    if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+        document.getElementById('customer_name').focus();
+    } else {
+        alert('Please use a modern browser to create orders.');
+    }
+}
+
+function closeOrderDialog() {
+    dialog.close();
+}
+
+dialog.addEventListener('click', event => {
+    if (event.target === dialog) {
+        dialog.close();
+    }
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && dialog.open) {
+        dialog.close();
+    }
+});
+</script>
+</body>
+</html>
+PHP
+
+# Configure PHP-FPM to run as nginx so it can write to the SQLite database.
+if [[ -f /etc/php-fpm.d/www.conf ]]; then
+    sed -i \
+        -e 's/^user = .*/user = nginx/' \
+        -e 's/^group = .*/group = nginx/' \
+        /etc/php-fpm.d/www.conf
+fi
+
+# Configure the application virtual host.
+cat > /etc/nginx/conf.d/order-portal.conf <<'NGINX'
+server {
+    listen 80 default_server;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.php;
+    server_tokens off;
+    client_max_body_size 1m;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php-fpm/www.sock;
+        fastcgi_read_timeout 60s;
+    }
+
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+}
+NGINX
+
+# Ensure the web server owns the application and database directory.
+chown -R nginx:nginx "${APP_DIR}" "${DB_DIR}"
+chmod 750 "${DB_DIR}"
+chmod 640 "${DB_FILE}" 2>/dev/null || true
+chmod 644 "${PHP_FILE}"
+
+# Validate configuration before enabling services.
+php -l "${PHP_FILE}"
+nginx -t
+
+systemctl enable --now php-fpm
+systemctl restart php-fpm
+systemctl enable --now nginx
+systemctl reload nginx
+
+# Wait for the application to initialize the database and become available.
+READY=0
+
+for attempt in $(seq 1 30); do
+    if curl-minimal -fsS http://127.0.0.1/ -o /tmp/order-portal-check.html; then
+        READY=1
+        break
+    fi
+
+    sleep 1
+done
+
+if [[ "${READY}" -ne 1 ]]; then
+    echo "ERROR: The portal did not respond successfully."
+    echo "Check: journalctl -u nginx -u php-fpm --no-pager -n 100"
+    exit 1
+fi
+
+# The first HTTP request creates the SQLite tables and inserts 75 demo orders.
+if ! grep -q "Order Management" /tmp/order-portal-check.html; then
+    echo "ERROR: The application did not return the expected page."
+    echo "Check: journalctl -u nginx -u php-fpm --no-pager -n 100"
+    exit 1
+fi
+
+echo "Order Management Portal deployed successfully." > /var/log/prov.done
+chmod 644 /var/log/prov.done
+
+PUBLIC_IP="$(hostname -I | awk '{print $1}')"
+
+echo
+echo "============================================================"
+echo " TAI ORDER MANAGEMENT PORTAL"
+echo "============================================================"
+echo " URL:       http://${PUBLIC_IP}/"
+echo " Demo data: 75 initial orders"
+echo " Database:  ${DB_FILE}"
+echo " Stack:     Nginx + PHP-FPM + SQLite"
+echo " Services:  nginx, php-fpm"
+echo "============================================================"
+echo
+echo "NOTE: This deployment uses local SQLite storage."
+echo "Restrict access through your firewall/security group before"
+echo "using the portal with real business or customer information."
