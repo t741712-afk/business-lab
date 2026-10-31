@@ -101,9 +101,7 @@ aws cloudformation describe-stacks \
 | `web-apache-2-public` | 10.0.0.34 | Amazon Linux | Public web application |
 | `web-iis` | 10.0.0.35 | Windows | Public web application |
 | `monitor` | 10.0.0.40 | Amazon Linux | Monitoring: Prometheus, Blackbox Exporter, Grafana |
-| `servicegateway` | 10.0.0.75 | See note | Service Gateway (SSH as `admin`) |
-
-> **Service Gateway:** provisioned from a fixed machine image without an automation script in this repository. Its operating system and role details are documented by the lab coordinator. It has a dedicated public address — treat it as an internet-facing system.
+| `servicegateway` | 10.0.0.75 | — | Service Gateway (SSH as `admin`) |
 
 ---
 
