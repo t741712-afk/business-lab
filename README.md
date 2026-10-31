@@ -86,7 +86,7 @@ Estado según el código de los scripts en `main`:
 | web-apache-1-public | 10.0.0.33 | t3.small | `web-apache-php.sh` | Vulnerable |
 | web-apache-2-public | 10.0.0.34 | t3.small | `web-apache-php.sh` | Vulnerable |
 | web-iis | 10.0.0.35 | t3.medium | `web-iis.ps1` | Vulnerable |
-| monitor | 10.0.0.40 | t3.medium | `monitor.sh` | Sin fallos intencionados |
+| monitor | 10.0.0.40 | t3.medium | `monitor.sh` | Fuera de alcance del pentesting (sin fallos intencionados) |
 | servicegateway | 10.0.0.75 | c5.2xlarge | (sin script) | Pendiente de documentar |
 
 > `web-apache-1-public` y `web-apache-2-public` usan el mismo script y el mismo código. El balanceador reparte entre `.33` y `.34`.
@@ -115,7 +115,7 @@ Estado según el código de los scripts en `main`:
 | Clients | win-client-2 | 10.0.4.12 | t3.medium | `client-win.ps1` | Vulnerable |
 | Clients | lin-client | 10.0.4.13 | t3.small | `client-linux.sh` | Parcial |
 | Ops | ops-dns-ntp | 10.0.5.11 | t3.micro | `ops-dns-ntp.sh` | Vulnerable |
-| Ops | ops-monitor | 10.0.5.12 | t3.medium | `ops-monitor.sh` | Sin fallos intencionados |
+| Ops | ops-monitor | 10.0.5.12 | t3.medium | `ops-monitor.sh` | Parcial (credenciales por defecto, Prometheus sin autenticación) |
 | Ops | ops-siem-elk | 10.0.5.13 | c5.2xlarge | `ops-elk.sh` | Parcial |
 | Ops | ops-nfs-backup | 10.0.5.14 | t3.small | `ops-nfs.sh` | Vulnerable |
 | Ops | ops-jenkins-ci | 10.0.5.15 | t3.medium | `ops-jenkins.sh` | Vulnerable |
