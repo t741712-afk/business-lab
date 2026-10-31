@@ -101,6 +101,21 @@ try {
         Write-Host "==> vulnerable-AD ejecutado con exito."
     }
 
+    # VULNERABILIDAD (credenciales en SYSVOL): cuenta de servicio y script de inicio de sesion
+    # con su contrasena en claro. SYSVOL se replica a todos los DC, incluido DC2
+    Write-Host "==> Creando cuenta svc-backup y script de inicio de sesion en SYSVOL..."
+    $bkPass = ConvertTo-SecureString "Backup2026!" -AsPlainText -Force
+    if(-not (Get-ADUser -Filter "SamAccountName -eq 'svc-backup'" -ErrorAction SilentlyContinue)){
+        New-ADUser -Name "Backup Service" -SamAccountName "svc-backup" -AccountPassword $bkPass -Enabled $true -PasswordNeverExpires $true -Path "OU=Service,$ouRoot"
+    }
+    $scriptsDir = "C:\Windows\SYSVOL\sysvol\__DOMAINNAME__\scripts"
+    New-Item -Path $scriptsDir -ItemType Directory -Force | Out-Null
+    Set-Content -Path "$scriptsDir\map-drives.bat" -Encoding ASCII -Value @(
+        "@echo off",
+        "REM TAI Corp - drive mappings for corporate users",
+        "net use Z: \\fileserver.__DOMAINNAME__\Public /user:CORP\svc-backup Backup2026!"
+    )
+
     # VULNERABILIDAD (AS-REP Roasting): preautenticacion Kerberos desactivada para tvasquez
     Write-Host "==> Creando cuenta tvasquez (AS-REP Roasting)..."
     $tvPass = ConvertTo-SecureString "Spring2026!" -AsPlainText -Force

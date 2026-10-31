@@ -22,6 +22,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
     } else {
         $ldap_user = (strpos($username, "@") === false) ? $username . $domain_suffix : $username;
         $authenticated = false;
+        $failure_reason = null;
         
         foreach ($domain_controllers as $dc) {
             $ldap_conn = @ldap_connect($dc);
@@ -36,12 +37,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
                     @ldap_close($ldap_conn);
                     break;
                 }
+                // VULNERABILIDAD (enumeración de usuarios): AD indica en el diagnóstico si la cuenta no existe (data 525)
+                // o si la contraseña es incorrecta (data 52e), y el portal muestra ese mensaje
+                $diagnostic = "";
+                ldap_get_option($ldap_conn, LDAP_OPT_DIAGNOSTIC_MESSAGE, $diagnostic);
+                if (strpos((string)$diagnostic, "data 525") !== false) {
+                    $failure_reason = "Unknown user account.";
+                } elseif (strpos((string)$diagnostic, "data 52e") !== false) {
+                    $failure_reason = "Incorrect password for this account.";
+                }
                 @ldap_close($ldap_conn);
             }
         }
         
         if (!$authenticated) {
-            $error_message = "Invalid domain credentials. Access denied.";
+            $error_message = $failure_reason ?? "Invalid domain credentials. Access denied.";
         }
     }
 }

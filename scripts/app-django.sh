@@ -817,6 +817,12 @@ chown -R django:django "${APP_DIR}"
 "${VENV}/bin/python" manage.py check
 "${VENV}/bin/python" manage.py migrate --noinput
 
+# VULNERABILIDAD (cuenta de administrador por defecto): superusuario con contraseña conocida
+DJANGO_SUPERUSER_USERNAME=admin \
+DJANGO_SUPERUSER_EMAIL=admin@business-lab.local \
+DJANGO_SUPERUSER_PASSWORD='Admin#2026' \
+"${VENV}/bin/python" manage.py createsuperuser --noinput || true
+
 systemctl daemon-reload
 systemctl enable django
 systemctl restart django

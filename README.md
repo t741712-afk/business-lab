@@ -97,7 +97,7 @@ Estado según el código de los scripts en `main`:
 |---|---|---|---|---|---|
 | App | app-tomcat | 10.0.1.11 | t3.medium | `app-tomcat.sh` | Vulnerable |
 | App | app-node | 10.0.1.12 | t3.small | `app-node.sh` | Parcial |
-| App | app-dotnet | 10.0.1.13 | t3.medium | `app-dotnet.ps1` | Sin fallos intencionados |
+| App | app-dotnet | 10.0.1.13 | t3.medium | `app-dotnet.ps1` | Vulnerable |
 | App | app-django | 10.0.1.14 | t3.small | `app-django.sh` | Parcial |
 | App | app-php-fpm | 10.0.1.15 | t3.small | `app-php-fpm.sh` | Vulnerable |
 | App | app-docker | 10.0.1.16 | c5.2xlarge | `app-docker.sh` | Parcial |
@@ -139,13 +139,14 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | web-iis (DMZ) | Portal de subida sin validar que ejecuta cualquier `.aspx` | `scripts/web-iis.ps1` |
 | app-tomcat (App) | Tomcat Manager con usuario de despliegue débil, accesible desde cualquier IP | `scripts/app-tomcat.sh` |
 | app-php-fpm (App) | SQL injection en el buscador de pedidos (concatenación directa de `q`) | `scripts/app-php-fpm.sh` |
+| app-dotnet (App) | Página de diagnóstico que ejecuta comandos del sistema a través del parámetro `cmd` | `scripts/app-dotnet.ps1` |
 | intranet (Corp) | Directorio `/backup` con listado activado y fichero con configuración de BBDD | `scripts/intranet.sh` |
 
 ### Active Directory y Windows
 
 | Máquina | Tipo de fallo | Ubicación |
 |---|---|---|
-| dc1 (Corp) | Carga `vulnerable-AD` (safebuffer), cuenta `DomainJoin` como Domain Admin, cuentas con AS-REP y Kerberoasting, ACL `GenericWrite` de `IT-Admins` sobre `ops-svc` | `scripts/dc1.ps1` |
+| dc1 (Corp) | Carga `vulnerable-AD` (safebuffer), cuenta `DomainJoin` como Domain Admin, cuentas con AS-REP y Kerberoasting, ACL `GenericWrite` de `IT-Admins` sobre `ops-svc`, script de inicio de sesión en SYSVOL con contraseña en claro (se replica a dc2) | `scripts/dc1.ps1` |
 | win-client-1/2 (Clients) | Tarea programada `TAI-Maintenance` como SYSTEM que ejecuta un script modificable por `Users` | `scripts/client-win.ps1` |
 | fileserver (Corp) | Recursos SMB con ficheros de prueba que contienen credenciales en claro | `scripts/file-smb.ps1` |
 
@@ -165,11 +166,12 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | Máquina | Tipo de fallo | Ubicación |
 |---|---|---|
 | bastion (DMZ) | Nota de traspaso en `/home/ec2-user/notes/handover-ops.txt` con credenciales de Tomcat y MySQL | `scripts/bastion.sh` |
-| app-django (App) | `ALLOWED_HOSTS = ["*"]`, `/admin/` expuesto y `DEBUG` sin desactivar | `scripts/app-django.sh` |
+| app-django (App) | `ALLOWED_HOSTS = ["*"]`, `/admin/` expuesto, `DEBUG` sin desactivar y superusuario `admin` con contraseña por defecto | `scripts/app-django.sh` |
 | app-node (App) | `POST /sequences` sin autenticación y consola `/api/docs` expuesta | `api/server.js` |
-| web-nginx-1-intranet (DMZ) | Login LDAP contra DC1 sin TLS (credenciales en claro) | `nginx/index.php` |
+| web-nginx-1-intranet (DMZ) | Login LDAP contra DC1 sin TLS (credenciales en claro) y mensajes de error que revelan si un usuario existe | `nginx/index.php` |
 | mailserver (Corp) | Usuarios de correo con contraseña compartida, IMAP/POP3 sin TLS | `scripts/mail-postfix.sh` |
-| linux-member (Corp) | Contraseña de `DomainJoin` en el script de unión | `scripts/linux-domain-join.sh` |
+| linux-member (Corp) | Contraseña de `DomainJoin` en el script de unión, y cuenta `itsupport` con `sudo` sin contraseña para un editor | `scripts/linux-domain-join.sh` |
+| db-postgres (Datos) | Superusuario `postgres` con contraseña débil y acceso sin contraseña desde la subred de clientes | `scripts/db-postgres.sh` |
 | lin-client (Clients) | `labuser` con sudo y xrdp expuesto | `scripts/client-linux.sh` |
 | ops-siem-elk (Ops) | `xpack.security.enabled=false` | `scripts/ops-elk.sh` |
 
@@ -187,6 +189,10 @@ Todas son de laboratorio. Están en los scripts, así que **cualquiera con acces
 | Dominio | tvasquez | `Spring2026!` (AS-REP Roasting) | `dc1.ps1` |
 | Dominio | svc-sql | `Summer2026!` (Kerberoasting) | `dc1.ps1` |
 | Dominio | ops-svc | Se crea en `dc1.ps1` | `dc1.ps1` |
+| Dominio | svc-backup | `Backup2026!` (en el script de inicio de sesión de SYSVOL) | `dc1.ps1` |
+| Django (superusuario) | admin | `Admin#2026` | `app-django.sh` |
+| PostgreSQL (superusuario) | postgres | `postgres` | `db-postgres.sh` |
+| Linux (sudo) | itsupport | `Support#2026` | `linux-domain-join.sh` |
 | Tomcat Manager | deployer | `Deploy#2026` | `app-tomcat.sh` |
 | MySQL / PostgreSQL | app | `App#2026` | `db-mysql.sh`, `db-postgres.sh`, `app-php-fpm.sh` |
 | MSSQL | sa | `BusinessLab#2026` | `db-mssql.ps1` |

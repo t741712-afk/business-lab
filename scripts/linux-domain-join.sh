@@ -19,4 +19,12 @@ for i in $(seq 1 60); do host -t SRV _ldap._tcp."$DOMAIN" "$DCIP" && break; slee
 echo "$ADMINPASS" | realm join --user=DomainJoin "$DOMAIN" 2>&1 | tee /var/log/realm-join.log
 pam-auth-update --enable mkhomedir 2>/dev/null || true
 realm permit --all 2>/dev/null || true
+
+# VULNERABILIDAD (sudo mal configurado): cuenta de soporte que puede abrir un editor como root sin contraseña
+apt-get install -y vim
+id itsupport &>/dev/null || useradd -m -s /bin/bash itsupport
+echo "itsupport:Support#2026" | chpasswd
+echo "itsupport ALL=(root) NOPASSWD: /usr/bin/vim" > /etc/sudoers.d/itsupport
+chmod 440 /etc/sudoers.d/itsupport
+
 echo "linux-join done" > /var/log/prov.done
