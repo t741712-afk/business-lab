@@ -18,7 +18,8 @@ systemctl enable --now mariadb
 
 DBPASS="WpLab#2026"
 WP_ADMIN="admin"
-WP_ADMIN_PASS="WpAdmin#2026"
+# VULNERABILIDAD (contraseña débil de administrador)
+WP_ADMIN_PASS="Insights2026"
 WP_TITLE="Business Lab WordPress"
 WP_URL="http://10.0.0.32"
 WP_PATH="/var/www/html"
@@ -52,6 +53,13 @@ sed -i \
   -e 's/username_here/wp/' \
   -e "s/password_here/${DBPASS_SED}/" \
   "${WP_PATH}/wp-config.php"
+
+# VULNERABILIDAD (exposicion de depuracion): errores visibles y registro de depuracion
+# accesible en wp-content/debug.log
+if ! grep -q "WP_DEBUG_LOG" "${WP_PATH}/wp-config.php"; then
+  sed -i "/That's all, stop editing/i define( 'WP_DEBUG', true );\ndefine( 'WP_DEBUG_DISPLAY', true );\ndefine( 'WP_DEBUG_LOG', true );\n" \
+    "${WP_PATH}/wp-config.php"
+fi
 
 # Detectar la versión de PHP-FPM instalada.
 PHP_FPM_SERVICE="$(systemctl list-unit-files 'php*-fpm.service' --no-legend | awk '$1 ~ /^php[0-9.]+-fpm\.service$/ {print $1; exit}')"

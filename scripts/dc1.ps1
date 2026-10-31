@@ -101,6 +101,33 @@ try {
         Write-Host "==> vulnerable-AD ejecutado con exito."
     }
 
+    # VULNERABILIDAD (AS-REP Roasting): preautenticacion Kerberos desactivada para tvasquez
+    Write-Host "==> Creando cuenta tvasquez (AS-REP Roasting)..."
+    $tvPass = ConvertTo-SecureString "Spring2026!" -AsPlainText -Force
+    if(-not (Get-ADUser -Filter "SamAccountName -eq 'tvasquez'" -ErrorAction SilentlyContinue)){
+        New-ADUser -Name "Teresa Vasquez" -SamAccountName "tvasquez" -AccountPassword $tvPass -Enabled $true -PasswordNeverExpires $true -Path "OU=Corp,$ouRoot"
+    }
+    Set-ADAccountControl -Identity "tvasquez" -DoesNotRequirePreAuth $true
+
+    # VULNERABILIDAD (Kerberoasting): cuenta de servicio con SPN y contrasena debil
+    Write-Host "==> Creando cuenta svc-sql (Kerberoasting)..."
+    $svcPass = ConvertTo-SecureString "Summer2026!" -AsPlainText -Force
+    if(-not (Get-ADUser -Filter "SamAccountName -eq 'svc-sql'" -ErrorAction SilentlyContinue)){
+        New-ADUser -Name "SQL Service" -SamAccountName "svc-sql" -AccountPassword $svcPass -Enabled $true -PasswordNeverExpires $true -Path "OU=Service,$ouRoot"
+        Set-ADUser -Identity "svc-sql" -ServicePrincipalNames @{Add="MSSQLSvc/mssql.corp.local:1433"}
+    }
+
+    # VULNERABILIDAD (ACL excesiva): IT-Admins puede modificar la cuenta ops-svc (GenericWrite)
+    Write-Host "==> Aplicando ACL debil: IT-Admins -> GenericWrite sobre ops-svc..."
+    $grp = Get-ADGroup -Identity "IT-Admins"
+    $target = Get-ADUser -Identity "ops-svc"
+    $sid = New-Object System.Security.Principal.SecurityIdentifier $grp.SID
+    $dn = "AD:" + $target.DistinguishedName
+    $acl = Get-Acl -Path $dn
+    $rule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($sid, [System.DirectoryServices.ActiveDirectoryRights]::GenericWrite, [System.Security.AccessControl.AccessControlType]::Allow)
+    $acl.AddAccessRule($rule)
+    Set-Acl -Path $dn -AclObject $acl
+
     "OK" | Set-Content -Path "C:\prov.done" -Encoding ASCII
     Unregister-ScheduledTask -TaskName "PostDcSetup" -Confirm:$false -ErrorAction SilentlyContinue
 }

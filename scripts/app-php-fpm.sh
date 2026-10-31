@@ -451,11 +451,11 @@ try {
     $params = [];
 
     if ($search !== '') {
-        $where[] = "(order_number ILIKE :search
-                     OR customer_name ILIKE :search
-                     OR customer_email ILIKE :search
-                     OR description ILIKE :search)";
-        $params[':search'] = '%' . $search . '%';
+        // VULNERABILIDAD (SQLi): el término de búsqueda se concatena directamente en la consulta
+        $where[] = "(order_number ILIKE '%{$search}%'
+                     OR customer_name ILIKE '%{$search}%'
+                     OR customer_email ILIKE '%{$search}%'
+                     OR description ILIKE '%{$search}%')";
     }
 
     if ($statusFilter !== '') {

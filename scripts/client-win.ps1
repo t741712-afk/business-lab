@@ -18,6 +18,19 @@ New-Item -Path C:\Tools -ItemType Directory -Force | Out-Null
 try { Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/putty-64bit-0.83-installer.msi" -OutFile C:\Tools\putty.msi -UseBasicParsing
       Start-Process msiexec.exe -ArgumentList "/i C:\Tools\putty.msi /qn /norestart" -Wait } catch {}
 
+# VULNERABILIDAD (escalada de privilegios): tarea programada como SYSTEM que ejecuta
+# un script situado en una carpeta que los usuarios pueden modificar
+New-Item -Path C:\TAI\Maintenance -ItemType Directory -Force | Out-Null
+@'
+# TAI workstation maintenance: registra la ejecucion periodica de mantenimiento
+$log = "C:\TAI\Maintenance\maintenance.log"
+Add-Content -Path $log -Value ("{0} maintenance run" -f (Get-Date))
+'@ | Set-Content -Path C:\TAI\Maintenance\maintenance.ps1 -Encoding ASCII
+icacls C:\TAI\Maintenance /grant "BUILTIN\Users:(OI)(CI)M" | Out-Null
+$maintAction  = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File C:\TAI\Maintenance\maintenance.ps1"
+$maintTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
+Register-ScheduledTask -TaskName "TAI-Maintenance" -Action $maintAction -Trigger $maintTrigger -User "SYSTEM" -RunLevel Highest -Force | Out-Null
+
 "client ready $(Get-Date)" | Out-File C:\prov.done
 
 # Esperar dominio y unir (reinicia)

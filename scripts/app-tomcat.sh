@@ -9,7 +9,24 @@ REPO_BASE_URL="https://raw.githubusercontent.com/t741712-afk/business-lab/refs/h
 echo "==> Asegurando entorno de ejecución e instalación limpia de Tomcat 9 corporativo..."
 apt-get update -y
 # Instalamos tomcat9 junto con su paquete administrativo estándar de Ubuntu
-apt-get install -y default-jre-headless tomcat9
+apt-get install -y default-jre-headless tomcat9 tomcat9-admin
+
+# VULNERABILIDAD (Tomcat Manager): usuario de despliegue con contraseña débil
+echo "==> Configurando usuario de despliegue (Tomcat Manager)..."
+cat > /etc/tomcat9/tomcat-users.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<tomcat-users xmlns="http://tomcat.apache.org/xml" version="1.0">
+  <role rolename="manager-gui"/>
+  <role rolename="manager-script"/>
+  <user username="deployer" password="Deploy#2026" roles="manager-gui,manager-script"/>
+</tomcat-users>
+EOF
+chown root:tomcat /etc/tomcat9/tomcat-users.xml
+chmod 640 /etc/tomcat9/tomcat-users.xml
+
+# VULNERABILIDAD: Tomcat Manager accesible desde cualquier IP (por defecto solo localhost)
+find -L /var/lib/tomcat9/webapps/manager /usr/share/tomcat9-admin -path '*META-INF/context.xml' 2>/dev/null \
+  -exec sed -i 's/allow="[^"]*"/allow=".*"/' {} \; || true
 
 echo "==> Asegurando de forma mandatoria la existencia de la carpeta ROOT..."
 mkdir -p /var/lib/tomcat9/webapps/ROOT
