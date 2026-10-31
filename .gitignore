@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Copias de seguridad y versiones antiguas de scripts
+*.bk
+*.0ld
+*.orig
+*.tmp
+*~
+
+# Editores e IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ficheros locales con secretos o credenciales (no versionar)
+*.pem
+*.key
+.env
+.env.*
+*.local.yaml
+
+# Logs y salidas temporales
+*.log
+*.out
