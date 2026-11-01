@@ -31,6 +31,18 @@ $maintAction  = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-No
 $maintTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName "TAI-Maintenance" -Action $maintAction -Trigger $maintTrigger -User "SYSTEM" -RunLevel Highest -Force | Out-Null
 
+# VULNERABILIDAD (cuenta local con privilegios): cuenta de soporte del puesto con permisos de
+# administrador local y acceso por RDP. Su credencial aparece en el informe 3 del portal de .NET
+# Se habilita RDP en el puesto para que la cuenta sea utilizable
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+Enable-NetFirewallRule -DisplayGroup 'Remote Desktop' -ErrorAction SilentlyContinue
+$helpPass = ConvertTo-SecureString 'Helpdesk2026!' -AsPlainText -Force
+if (-not (Get-LocalUser -Name svc-helpdesk -ErrorAction SilentlyContinue)) {
+  New-LocalUser -Name svc-helpdesk -Password $helpPass -PasswordNeverExpires -FullName 'Helpdesk Service' -Description 'Workstation support' | Out-Null
+}
+Add-LocalGroupMember -Group Administrators -Member svc-helpdesk -ErrorAction SilentlyContinue
+Add-LocalGroupMember -Group 'Remote Desktop Users' -Member svc-helpdesk -ErrorAction SilentlyContinue
+
 "client ready $(Get-Date)" | Out-File C:\prov.done
 
 # Esperar dominio y unir (reinicia)
