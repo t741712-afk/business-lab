@@ -2,7 +2,7 @@
 // nginx/index.php - Operations Hub with Active Directory LDAP Authentication
 session_start();
 
-$domain_controllers = array("10.0.3.10");
+$domain_controllers = array("10.0.3.10", "10.0.3.11");
 $domain_suffix = "@corp.local";
 $error_message = "";
 
