@@ -3,7 +3,9 @@
 session_start();
 
 $domain_controllers = array("10.0.3.10", "10.0.3.11");
-$domain_suffix = "@corp.local";
+$service_user = "ops-svc@corp.local";
+$service_password = "BusinessLab#2026";
+$base_dn = "dc=corp,dc=local";
 $error_message = "";
 
 // Handle Logout
@@ -20,36 +22,44 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["username"]) && isset(
     if (empty($username) || empty($password)) {
         $error_message = "Please enter both username and password.";
     } else {
-        $ldap_user = (strpos($username, "@") === false) ? $username . $domain_suffix : $username;
         $authenticated = false;
         $failure_reason = null;
-        
+
+        // VULNERABILIDAD (enumeración de usuarios): en un bind simple AD devuelve el mismo error (data 52e)
+        // para un usuario inexistente y para una contraseña incorrecta, así que el portal busca primero
+        // el usuario con una cuenta de servicio y solo después valida la contraseña
+        $filter_attr = (strpos($username, "@") === false) ? "sAMAccountName" : "userPrincipalName";
+        $filter = "(&(objectClass=user)($filter_attr=" . ldap_escape($username, "", LDAP_ESCAPE_FILTER) . "))";
+
         foreach ($domain_controllers as $dc) {
             $ldap_conn = @ldap_connect($dc);
-            if ($ldap_conn) {
-                @ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
-                @ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
-                
-                if (@ldap_bind($ldap_conn, $ldap_user, $password)) {
-                    $_SESSION["authenticated"] = true;
-                    $_SESSION["username"] = $username;
-                    $authenticated = true;
-                    @ldap_close($ldap_conn);
-                    break;
-                }
-                // VULNERABILIDAD (enumeración de usuarios): AD indica en el diagnóstico si la cuenta no existe (data 525)
-                // o si la contraseña es incorrecta (data 52e), y el portal muestra ese mensaje
-                $diagnostic = "";
-                ldap_get_option($ldap_conn, LDAP_OPT_DIAGNOSTIC_MESSAGE, $diagnostic);
-                if (strpos((string)$diagnostic, "data 525") !== false) {
-                    $failure_reason = "Unknown user account.";
-                } elseif (strpos((string)$diagnostic, "data 52e") !== false) {
-                    $failure_reason = "Incorrect password for this account.";
-                }
-                @ldap_close($ldap_conn);
+            if (!$ldap_conn) {
+                continue;
             }
+            @ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
+            @ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
+
+            if (!@ldap_bind($ldap_conn, $service_user, $service_password)) {
+                @ldap_close($ldap_conn);
+                continue; // este DC no acepta la cuenta de servicio; probamos el siguiente
+            }
+
+            $search = @ldap_search($ldap_conn, $base_dn, $filter, array("dn"));
+            $entries = $search ? ldap_get_entries($ldap_conn, $search) : array("count" => 0);
+
+            if ($entries["count"] === 0) {
+                $failure_reason = "Unknown user account.";
+            } elseif (@ldap_bind($ldap_conn, $entries[0]["dn"], $password)) {
+                $_SESSION["authenticated"] = true;
+                $_SESSION["username"] = $username;
+                $authenticated = true;
+            } else {
+                $failure_reason = "Incorrect password for this account.";
+            }
+            @ldap_close($ldap_conn);
+            break;
         }
-        
+
         if (!$authenticated) {
             $error_message = $failure_reason ?? "Invalid domain credentials. Access denied.";
         }
