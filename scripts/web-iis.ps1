@@ -6,7 +6,7 @@ Start-Transcript -Path C:\prov.log -Append
 try {
   net user Administrator $AdminPassword
   Enable-NetFirewallRule -Name FPS-ICMP4-ERQ-In   # ping (echo ICMPv4) para el monitor
-  Install-WindowsFeature -Name Web-Server,Web-Asp-Net45 -IncludeManagementTools
+  Install-WindowsFeature -Name Web-Server,Web-Asp-Net45,Web-Dir-Browsing -IncludeManagementTools
   # Sitio corporativo ficticio: una plantilla común y cuatro páginas. Sin nombre de equipo, fechas ni versiones.
   $layout = @'
 <!doctype html>
@@ -85,6 +85,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);text-align:center;p
 <h2>Careers at TAI</h2>
 <p>We are hiring bioinformaticians, machine learning engineers, clinical data specialists and security engineers for our Berlin headquarters and our European research sites.</p>
 <a class="btn" href="contact.html">Contact recruiting</a>
+<div class="card" style="margin-top:2rem"><h3>Send us your CV</h3><p>Upload your CV or a research summary for the recruiting team.</p><a class="btn" href="upload/upload.aspx">Submit documents</a></div>
 '@
 
   Write-TaiPage 'contact.html' 'Contact' @'
@@ -132,6 +133,40 @@ button{background:#2563EB;color:#fff;border:none;padding:.5rem 1rem;border-radiu
 '@
   Set-Content -Path C:\inetpub\wwwroot\upload\upload.aspx -Value $upload -Encoding UTF8
   icacls C:\inetpub\wwwroot\upload /grant "IIS_IUSRS:(OI)(CI)M" | Out-Null
+
+  # VULNERABILIDAD (trace habilitado): trace.axd muestra cabeceras, variables y la pila de cada peticion
+  # a cualquier IP (localOnly="false")
+  Set-Content -Path C:\inetpub\wwwroot\web.config -Encoding UTF8 -Value @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.web>
+    <trace enabled="true" localOnly="false" requestLimit="40" pageOutput="false" />
+  </system.web>
+</configuration>
+'@
+
+  # VULNERABILIDAD (listado de directorio y copia de configuracion): /backup/ lista su contenido
+  # y contiene una copia del fichero de configuracion con la cadena de conexion a la base de datos
+  New-Item -Path C:\inetpub\wwwroot\backup -ItemType Directory -Force | Out-Null
+  Set-Content -Path C:\inetpub\wwwroot\backup\web.config -Encoding UTF8 -Value @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <directoryBrowse enabled="true" />
+  </system.webServer>
+</configuration>
+'@
+  Set-Content -Path C:\inetpub\wwwroot\backup\web.config.bak -Encoding UTF8 -Value @'
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TAI Document Portal - copia de configuracion anterior a la migracion -->
+<configuration>
+  <connectionStrings>
+    <add name="TAI_CRM" connectionString="Server=10.0.2.13;Database=TAI_CRM;User Id=sa;Password=BusinessLab#2026;" />
+  </connectionStrings>
+</configuration>
+'@
+  icacls C:\inetpub\wwwroot\backup /grant "IIS_IUSRS:(OI)(CI)R" | Out-Null
+
   "iis ready" | Out-File C:\prov.done
 } catch { $_ | Out-File C:\prov.error }
 Stop-Transcript
