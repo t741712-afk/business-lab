@@ -45,6 +45,36 @@ try {
     if (Test-NetConnection 127.0.0.1 -Port 1433 -InformationLevel Quiet) { $ok = $true; break }
     Start-Sleep 10
   }
+  # Base de datos de ejemplo para la aplicación de clientes (la usa la copia de configuración de web-iis).
+  # Se crea con SqlClient, que viene con Windows, para no depender de sqlcmd.
+  try {
+    function Invoke-TaiSql([string]$Database, [string]$Sql) {
+      $conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=$Database;User Id=sa;Password=$AdminPassword;TrustServerCertificate=True")
+      $conn.Open()
+      try {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = $Sql
+        [void]$cmd.ExecuteNonQuery()
+      } finally { $conn.Close() }
+    }
+    Invoke-TaiSql 'master' "IF DB_ID('TAI_CRM') IS NULL CREATE DATABASE TAI_CRM;"
+    Invoke-TaiSql 'TAI_CRM' @"
+IF OBJECT_ID('dbo.partners', 'U') IS NULL
+  CREATE TABLE dbo.partners (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) NOT NULL,
+    sector NVARCHAR(100) NOT NULL,
+    contract_value DECIMAL(12,2) NOT NULL
+  );
+IF NOT EXISTS (SELECT 1 FROM dbo.partners)
+  INSERT INTO dbo.partners (name, sector, contract_value) VALUES
+    (N'Berlin Clinical Partner A', N'Hospital', 412000.00),
+    (N'Nordic Genomics Partner B', N'Research', 287500.00),
+    (N'Iberian Clinical Partner C', N'Hospital', 150900.00);
+"@
+    "TAI_CRM lista" | Out-File C:\prov.crm
+  } catch { $_.Exception.Message | Out-File C:\prov.crm.error }
+
   if ($ok) { "mssql ready - LISTEN 1433 OK $(Get-Date)" | Out-File C:\prov.done }
   else     { "WARN: SQL instalado pero no escucha en 1433 - revisar Configuration Manager" | Out-File C:\prov.done }
 } catch {
