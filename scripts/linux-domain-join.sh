@@ -13,19 +13,6 @@ echo -e "[main]\ndns=none" > /etc/NetworkManager/conf.d/dns.conf 2>/dev/null || 
 resolvectl dns "$(ip route show default | awk '{print $5; exit}')" "$DCIP" 2>/dev/null || true
 echo "nameserver ${DCIP}" > /etc/resolv.conf
 timedatectl set-ntp true
-# Kerberos necesita nombres, no IPs: sin esto, la resolución inversa de la IP del DC devuelve
-# el nombre de AWS (ip-10-0-3-10.ec2.internal) y el ticket de LDAP no existe en el KDC.
-# Se obtiene el nombre del DC desde el registro SRV y se añade a /etc/hosts junto con el propio equipo.
-# realmd elige cualquiera de los DC que responda (puede ser DC2), así que se añaden todos
-for target in $(host -t SRV _ldap._tcp."$DOMAIN" 2>/dev/null | awk '{print $NF}' | sed 's/\.$//'); do
-  dc_ip="$(host -t A "$target" 2>/dev/null | awk '/has address/{print $NF}' | head -1)"
-  if [ -n "$dc_ip" ]; then
-    grep -q "$target" /etc/hosts || echo "$dc_ip $target" >> /etc/hosts
-  fi
-done
-MY_IP="$(hostname -I | awk '{print $1}')"
-MY_NAME="$(hostname)"
-grep -q "$MY_NAME.$DOMAIN" /etc/hosts || echo "$MY_IP $MY_NAME.$DOMAIN $MY_NAME" >> /etc/hosts
 # Esperar a que el DC acepte conexiones LDAP. El registro SRV aparece antes de que NTDS esté listo,
 # por eso no basta con comprobarlo (puede tardar ~20-30 min en un despliegue limpio)
 for i in $(seq 1 60); do
@@ -34,9 +21,27 @@ for i in $(seq 1 60); do
   fi
   sleep 30
 done
+# Kerberos necesita nombres, no IPs: sin esto, la resolución inversa de la IP del DC devuelve
+# el nombre de AWS (ip-10-0-3-10.ec2.internal, que cloud-init añade a /etc/hosts) y el ticket de LDAP
+# no existe en el KDC. Se ejecuta antes de cada intento, porque el registro SRV del DC aún no existe al principio.
+# realmd elige cualquiera de los DC que responda (puede ser DC2), así que se añaden todos.
+# Se borra antes cualquier línea previa de cada IP, porque la resolución inversa usa la primera que coincida.
+add_dc_names() {
+  for target in $(host -t SRV _ldap._tcp."$DOMAIN" 2>/dev/null | awk '{print $NF}' | sed 's/\.$//'); do
+    dc_ip="$(host -t A "$target" 2>/dev/null | awk '/has address/{print $NF}' | head -1)"
+    if [ -n "$dc_ip" ]; then
+      sed -i "/^${dc_ip}[[:space:]]/d" /etc/hosts
+      echo "$dc_ip $target" >> /etc/hosts
+    fi
+  done
+  MY_IP="$(hostname -I | awk '{print $1}')"
+  MY_NAME="$(hostname)"
+  grep -q "$MY_NAME.$DOMAIN" /etc/hosts || echo "$MY_IP $MY_NAME.$DOMAIN $MY_NAME" >> /etc/hosts
+}
 # Unir con reintentos: el primer intento puede fallar aunque el DC responda
 JOINED=false
 for i in $(seq 1 10); do
+  add_dc_names
   if echo "$ADMINPASS" | realm join --user=DomainJoin "$DOMAIN" 2>&1 | tee -a /var/log/realm-join.log; then
     realm list | grep -q "$DOMAIN" && JOINED=true && break
   fi
