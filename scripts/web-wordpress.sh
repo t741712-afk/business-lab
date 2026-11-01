@@ -56,8 +56,11 @@ sed -i \
 
 # VULNERABILIDAD (exposicion de depuracion): errores visibles y registro de depuracion
 # accesible en wp-content/debug.log
+# wp-config-sample.php ya define WP_DEBUG como false. Una segunda definicion la ignora PHP,
+# por eso se cambia la existente en lugar de añadir otra
+sed -i "s/define( 'WP_DEBUG', false );/define( 'WP_DEBUG', true );/" "${WP_PATH}/wp-config.php"
 if ! grep -q "WP_DEBUG_LOG" "${WP_PATH}/wp-config.php"; then
-  sed -i "/That's all, stop editing/i define( 'WP_DEBUG', true );\ndefine( 'WP_DEBUG_DISPLAY', true );\ndefine( 'WP_DEBUG_LOG', true );\n" \
+  sed -i "/That's all, stop editing/i define( 'WP_DEBUG_DISPLAY', true );\ndefine( 'WP_DEBUG_LOG', true );\n" \
     "${WP_PATH}/wp-config.php"
 fi
 
