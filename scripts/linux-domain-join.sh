@@ -13,10 +13,40 @@ echo -e "[main]\ndns=none" > /etc/NetworkManager/conf.d/dns.conf 2>/dev/null || 
 resolvectl dns "$(ip route show default | awk '{print $5; exit}')" "$DCIP" 2>/dev/null || true
 echo "nameserver ${DCIP}" > /etc/resolv.conf
 timedatectl set-ntp true
-# Esperar a que el dominio resuelva (DC puede tardar ~20 min)
-for i in $(seq 1 60); do host -t SRV _ldap._tcp."$DOMAIN" "$DCIP" && break; sleep 30; done
-# Unir
-echo "$ADMINPASS" | realm join --user=DomainJoin "$DOMAIN" 2>&1 | tee /var/log/realm-join.log
+# Kerberos necesita nombres, no IPs: sin esto, la resolución inversa de la IP del DC devuelve
+# el nombre de AWS (ip-10-0-3-10.ec2.internal) y el ticket de LDAP no existe en el KDC.
+# Se obtiene el nombre del DC desde el registro SRV y se añade a /etc/hosts junto con el propio equipo.
+# realmd elige cualquiera de los DC que responda (puede ser DC2), así que se añaden todos
+for target in $(host -t SRV _ldap._tcp."$DOMAIN" 2>/dev/null | awk '{print $NF}' | sed 's/\.$//'); do
+  dc_ip="$(host -t A "$target" 2>/dev/null | awk '/has address/{print $NF}' | head -1)"
+  if [ -n "$dc_ip" ]; then
+    grep -q "$target" /etc/hosts || echo "$dc_ip $target" >> /etc/hosts
+  fi
+done
+MY_IP="$(hostname -I | awk '{print $1}')"
+MY_NAME="$(hostname)"
+grep -q "$MY_NAME.$DOMAIN" /etc/hosts || echo "$MY_IP $MY_NAME.$DOMAIN $MY_NAME" >> /etc/hosts
+# Esperar a que el DC acepte conexiones LDAP. El registro SRV aparece antes de que NTDS esté listo,
+# por eso no basta con comprobarlo (puede tardar ~20-30 min en un despliegue limpio)
+for i in $(seq 1 60); do
+  if host -t SRV _ldap._tcp."$DOMAIN" "$DCIP" >/dev/null 2>&1 && timeout 3 bash -c "</dev/tcp/${DCIP}/389" 2>/dev/null; then
+    break
+  fi
+  sleep 30
+done
+# Unir con reintentos: el primer intento puede fallar aunque el DC responda
+JOINED=false
+for i in $(seq 1 10); do
+  if echo "$ADMINPASS" | realm join --user=DomainJoin "$DOMAIN" 2>&1 | tee -a /var/log/realm-join.log; then
+    realm list | grep -q "$DOMAIN" && JOINED=true && break
+  fi
+  echo "Intento de union $i fallido, reintentando en 60 s..." | tee -a /var/log/realm-join.log
+  sleep 60
+done
+if [ "$JOINED" != true ]; then
+  echo "ERROR: no se pudo unir a ${DOMAIN}. Revisa /var/log/realm-join.log" > /var/log/prov.error
+  exit 1
+fi
 pam-auth-update --enable mkhomedir 2>/dev/null || true
 realm permit --all 2>/dev/null || true
 
