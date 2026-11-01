@@ -36,7 +36,7 @@ Register-ScheduledTask -TaskName "TAI-Maintenance" -Action $maintAction -Trigger
 # Se habilita RDP en el puesto para que la cuenta sea utilizable
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
 Enable-NetFirewallRule -DisplayGroup 'Remote Desktop' -ErrorAction SilentlyContinue
-$helpPass = ConvertTo-SecureString 'Helpdesk2026!' -AsPlainText -Force
+$helpPass = ConvertTo-SecureString 'Wkst2026!Ops' -AsPlainText -Force
 if (-not (Get-LocalUser -Name svc-helpdesk -ErrorAction SilentlyContinue)) {
   New-LocalUser -Name svc-helpdesk -Password $helpPass -PasswordNeverExpires -FullName 'Helpdesk Service' -Description 'Workstation support' | Out-Null
 }

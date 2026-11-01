@@ -96,7 +96,7 @@ footer{border-top:1px solid var(--border);color:var(--muted);text-align:center;p
   var reports = new System.Collections.Generic.Dictionary<string, string> {
     { "1", "Quarterly trial enrolment summary (public)." },
     { "2", "Partner onboarding contract (confidential)." },
-    { "3", "Clinical cohort analysis (restricted). Helpdesk workstation access: host 10.0.4.11 (win-client-1), account svc-helpdesk, password Helpdesk2026!" }
+    { "3", "Clinical cohort analysis (restricted). Helpdesk workstation access: host 10.0.4.11 (win-client-1), account svc-helpdesk, password Wkst2026!Ops" }
   };
   string id = Request.QueryString["id"] ?? "1";
   string text = reports.ContainsKey(id) ? reports[id] : "Report not found.";
