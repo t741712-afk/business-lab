@@ -783,6 +783,19 @@ grep -qE '^[[:space:]]*listen\.group[[:space:]]*=' "${PHP_FPM_POOL}" ||
 grep -qE '^[[:space:]]*listen\.mode[[:space:]]*=' "${PHP_FPM_POOL}" ||
     printf 'listen.mode = 0660\n' >> "${PHP_FPM_POOL}"
 
+# Las sesiones de PHP se guardan en una carpeta que el pool (usuario nginx) puede escribir.
+# Sin esto, session_start() falla con "Permission denied" y los tokens CSRF de los formularios no funcionan.
+PHP_SESSION_DIR="/var/lib/php/tai-sessions"
+mkdir -p "${PHP_SESSION_DIR}"
+chown nginx:nginx "${PHP_SESSION_DIR}"
+chmod 0700 "${PHP_SESSION_DIR}"
+# El paquete ya trae la directiva con la ruta por defecto: se sustituye, no se omite
+if grep -qE '^[[:space:]]*php_value\[session.save_path\]' "${PHP_FPM_POOL}"; then
+    sed -i "s#^[[:space:]]*php_value\[session.save_path\].*#php_value[session.save_path] = ${PHP_SESSION_DIR}#" "${PHP_FPM_POOL}"
+else
+    printf 'php_value[session.save_path] = %s\n' "${PHP_SESSION_DIR}" >> "${PHP_FPM_POOL}"
+fi
+
 # Add database environment variables to the PHP-FPM pool.
 if ! grep -q '^\[tai-order-portal-env\]' "${PHP_FPM_POOL}"; then
     cat >> "${PHP_FPM_POOL}" <<'POOL'
