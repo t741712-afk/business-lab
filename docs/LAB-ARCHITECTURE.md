@@ -24,30 +24,37 @@ Internal (private) zones reach the Internet through a NAT gateway. Administrativ
 
 ## 2. How to get in
 
-All administrative access goes through the **bastion** in the DMZ.
+The bastion in the DMZ is the only entry point from outside. Run every command below **from your own computer**, not from the bastion.
+
+### Linux hosts (SSH)
+
+Use a jump through the bastion. One command reaches any Linux host in the internal zones:
 
 ```bash
-# 1. Connect to the bastion (use the stack output BastionIp)
-ssh -i <keypair>.pem ec2-user@<BastionIp>
-
-# 2. From the bastion, reach Linux hosts in the internal zones
-ssh ec2-user@<ip>      # Amazon Linux hosts
-ssh ubuntu@<ip>        # Ubuntu hosts
+ssh -i <keypair>.pem -J ec2-user@<BastionIp> ec2-user@<ip>    # Amazon Linux hosts
+ssh -i <keypair>.pem -J ec2-user@<BastionIp> ubuntu@<ip>      # Ubuntu hosts
 ```
 
-To reuse your key on the bastion without copying it there, forward your agent:
+### Windows hosts (RDP)
 
-```bash
-ssh -A -i <keypair>.pem ec2-user@<BastionIp>
-```
-
-**Windows hosts (RDP)** — open a tunnel through the bastion, then point your RDP client at the local port you chose:
+RDP needs a tunnel through the bastion. Open it from your computer and leave it running while you work:
 
 ```bash
 ssh -i <keypair>.pem -L <local-port>:<windows-host-ip>:<rdp-port> ec2-user@<BastionIp>
 ```
 
-Windows accounts and passwords are issued separately by the lab coordinator.
+Then point your RDP client at `localhost:<local-port>`. Choose any free local port.
+
+Accounts:
+- **Domain accounts** (domain controllers, domain members): enter them as `CORP\<user>`.
+- **Local accounts**: the lab coordinator provides them separately.
+
+If the RDP client fails:
+- Check that the tunnel terminal is still open. Closing it drops the connection.
+- Check that the tunnel points at the host you want. Each host has its own address.
+- Check the account format (`CORP\<user>` for domain accounts).
+
+Passwords are issued separately by the lab coordinator. Never store them in this repository or in shell history.
 
 **Service Gateway** — connect directly with its own address (stack output `ServiceGateway`):
 
