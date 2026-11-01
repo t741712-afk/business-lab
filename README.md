@@ -28,7 +28,8 @@ Todo el contenido visible para el usuario de cada máquina está en **inglés** 
 11. [Copias de seguridad y marcha atrás](#copias-de-seguridad-y-marcha-atrás)
 12. [Borrado](#borrado)
 13. [Normativa PX](#normativa-px)
-14. [Notas y límites](#notas-y-límites)
+14. [Historial de cambios](#historial-de-cambios)
+15. [Notas y límites](#notas-y-límites)
 
 ---
 
@@ -81,7 +82,7 @@ Estado según el código de los scripts en `main`:
 |---|---|---|---|---|
 | bastion | 10.0.0.10 | t3.micro | `bastion.sh` | Vulnerable (información sensible) |
 | loadbalancer | 10.0.0.20 | t3.small | `haproxy-lb.sh` | Vulnerable |
-| web-nginx-1-intranet | 10.0.0.31 | t3.small | `web-nginx.sh` | Parcial |
+| web-nginx-1-intranet | 10.0.0.31 | t3.small | `web-nginx.sh` | Vulnerable |
 | web-wordpress | 10.0.0.32 | t3.small | `web-wordpress.sh` | Vulnerable |
 | web-apache-1-public | 10.0.0.33 | t3.small | `web-apache-php.sh` | Vulnerable |
 | web-apache-2-public | 10.0.0.34 | t3.small | `web-apache-php.sh` | Vulnerable |
@@ -102,15 +103,15 @@ Estado según el código de los scripts en `main`:
 | App | app-php-fpm | 10.0.1.15 | t3.small | `app-php-fpm.sh` | Vulnerable |
 | App | app-docker | 10.0.1.16 | c5.2xlarge | `app-docker.sh` | Parcial |
 | Datos | db-mysql | 10.0.2.11 | t3.medium | `db-mysql.sh` | Parcial |
-| Datos | db-postgres | 10.0.2.12 | t3.medium | `db-postgres.sh` | Parcial |
+| Datos | db-postgres | 10.0.2.12 | t3.medium | `db-postgres.sh` | Vulnerable |
 | Datos | db-mssql | 10.0.2.13 | t3.large | `db-mssql.ps1` | Parcial |
 | Datos | db-mongo-redis | 10.0.2.14 | t3.medium | `db-mongo-redis.sh` | Vulnerable |
 | Corp | dc1 | 10.0.3.10 | t3.medium | `dc1.ps1` | Vulnerable |
-| Corp | dc2 | 10.0.3.11 | t3.medium | `dc2.ps1` | Sin fallos intencionados |
+| Corp | dc2 | 10.0.3.11 | t3.medium | `dc2.ps1` | Sin fallos propios (réplica: hereda las debilidades de dc1) |
 | Corp | fileserver | 10.0.3.12 | t3.medium | `file-smb.ps1` | Vulnerable |
 | Corp | mailserver | 10.0.3.13 | t3.small | `mail-postfix.sh` | Parcial |
 | Corp | intranet | 10.0.3.14 | t3.small | `intranet.sh` | Vulnerable |
-| Corp | linux-member | 10.0.3.15 | t3.small | `linux-domain-join.sh` | Parcial |
+| Corp | linux-member | 10.0.3.15 | t3.small | `linux-domain-join.sh` | Vulnerable |
 | Clients | win-client-1 | 10.0.4.11 | t3.medium | `client-win.ps1` | Vulnerable |
 | Clients | win-client-2 | 10.0.4.12 | t3.medium | `client-win.ps1` | Vulnerable |
 | Clients | lin-client | 10.0.4.13 | t3.small | `client-linux.sh` | Parcial |
@@ -136,10 +137,10 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | web-apache-1/2 (DMZ) | LFI por el parámetro `page`, subida de ficheros sin validar, `diagnostic.php` con `shell_exec`, `phpinfo()` expuesto, SELinux desactivado | `apache/index.php`, `apache/diagnostic.php`, `apache/info.php`, `scripts/web-apache-php.sh` |
 | loadbalancer (DMZ) | Panel de estadísticas sin contraseña (`stats admin if TRUE`), cabeceras de origen falsificables | `scripts/haproxy-lb.sh` |
 | web-wordpress (DMZ) | Administrador con contraseña débil y `WP_DEBUG_LOG` accesible desde la web | `scripts/web-wordpress.sh` |
-| web-iis (DMZ) | Portal de subida sin validar que ejecuta cualquier `.aspx` | `scripts/web-iis.ps1` |
+| web-iis (DMZ) | Frontal corporativo ficticio con: portal de subida sin validar que ejecuta cualquier `.aspx` (enlazado desde Careers), `trace.axd` accesible desde cualquier IP, y `/backup/` con listado y `web.config.bak` con la cadena de conexión a `TAI_CRM` | `scripts/web-iis.ps1` |
 | app-tomcat (App) | Tomcat Manager con usuario de despliegue débil, accesible desde cualquier IP | `scripts/app-tomcat.sh` |
 | app-php-fpm (App) | SQL injection en el buscador de pedidos (concatenación directa de `q`) | `scripts/app-php-fpm.sh` |
-| app-dotnet (App) | Página de diagnóstico que ejecuta comandos del sistema a través del parámetro `cmd` | `scripts/app-dotnet.ps1` |
+| app-dotnet (App) | Servicio clínico ficticio con: página de diagnóstico que ejecuta comandos (`diagnostics.aspx?cmd=`), IDOR en `report.aspx?id=` (los informes 2 y 3 no aparecen en la lista), clave de API del panel en el JavaScript de `status.aspx`, errores detallados (`customErrors` desactivado, `debug` activo) y, en el informe 3, la credencial de `svc-helpdesk` | `scripts/app-dotnet.ps1` |
 | intranet (Corp) | Directorio `/backup` con listado activado y fichero con configuración de BBDD | `scripts/intranet.sh` |
 
 ### Active Directory y Windows
@@ -147,7 +148,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | Máquina | Tipo de fallo | Ubicación |
 |---|---|---|
 | dc1 (Corp) | Carga `vulnerable-AD` (safebuffer), cuenta `DomainJoin` como Domain Admin, cuentas con AS-REP y Kerberoasting, ACL `GenericWrite` de `IT-Admins` sobre `ops-svc`, script de inicio de sesión en SYSVOL con contraseña en claro (se replica a dc2) | `scripts/dc1.ps1` |
-| win-client-1/2 (Clients) | Tarea programada `TAI-Maintenance` como SYSTEM que ejecuta un script modificable por `Users` | `scripts/client-win.ps1` |
+| win-client-1/2 (Clients) | Tarea programada `TAI-Maintenance` como SYSTEM que ejecuta un script modificable por `Users`; cuenta local `svc-helpdesk` con administración local y RDP (habilitado) | `scripts/client-win.ps1` |
 | fileserver (Corp) | Recursos SMB con ficheros de prueba que contienen credenciales en claro | `scripts/file-smb.ps1` |
 
 ### Bases de datos y servicios
@@ -168,7 +169,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | bastion (DMZ) | Nota de traspaso en `/home/ec2-user/notes/handover-ops.txt` con credenciales de Tomcat y MySQL | `scripts/bastion.sh` |
 | app-django (App) | `ALLOWED_HOSTS = ["*"]`, `/admin/` expuesto, `DEBUG` sin desactivar y superusuario `admin` con contraseña por defecto | `scripts/app-django.sh` |
 | app-node (App) | `POST /sequences` sin autenticación y consola `/api/docs` expuesta | `api/server.js` |
-| web-nginx-1-intranet (DMZ) | Login LDAP contra DC1 sin TLS (credenciales en claro) y mensajes de error que revelan si un usuario existe | `nginx/index.php` |
+| web-nginx-1-intranet (DMZ) | Login LDAP sin TLS (credenciales en claro). El login revela si un usuario existe: busca la cuenta con `ops-svc` (contraseña en el código) y después valida la contraseña, con un mensaje distinto para cada caso. Usa los dos DC | `nginx/index.php` |
 | mailserver (Corp) | Usuarios de correo con contraseña compartida, IMAP/POP3 sin TLS | `scripts/mail-postfix.sh` |
 | linux-member (Corp) | Contraseña de `DomainJoin` en el script de unión, y cuenta `itsupport` con `sudo` sin contraseña para un editor | `scripts/linux-domain-join.sh` |
 | db-postgres (Datos) | Superusuario `postgres` con contraseña débil y acceso sin contraseña desde la subred de clientes | `scripts/db-postgres.sh` |
@@ -206,6 +207,9 @@ Todas son de laboratorio. Están en los scripts, así que **cualquiera con acces
 | Jenkins (ops-jenkins-ci) | Según la imagen DockerLabs | Ver la imagen descargada | `ops-jenkins.sh` |
 | Intranet (copia de configuración) | app | `App#2026` (en `/backup/intranet-config.bak`) | `intranet.sh` |
 | Bastion (nota de traspaso) | — | Contiene `deployer` y `app` | `bastion.sh` |
+| Puesto Windows (local, administrador) | svc-helpdesk | `Wkst2026!Ops` (publicada en el informe 3 de `app-dotnet`) | `client-win.ps1`, `app-dotnet.ps1` |
+| Portal nginx (búsqueda LDAP) | ops-svc | `BusinessLab#2026` (en el código del portal) | `nginx/index.php` |
+| MSSQL (copia en `/backup/` de web-iis) | sa | `BusinessLab#2026` | `web-iis.ps1` |
 | MongoDB / Redis | — | Sin autenticación | `db-mongo-redis.sh` |
 
 > Las contraseñas de `dc1.ps1` que aparecen como `__ADMINPASS__` se sustituyen por `AdminPassword` en tiempo de ejecución.
@@ -261,6 +265,17 @@ https://raw.githubusercontent.com/t741712-afk/business-lab/main/scripts
 ```
 
 Copias de seguridad: los ficheros `*.bk`, `*.bk2` y `*.0ld` son versiones antiguas de los scripts y no deben desplegarse. `.gitignore` excluye `*.bk`, `*.0ld` y ficheros locales de secretos, pero **no** `*.bk2`, que aparecerá como fichero sin seguir hasta que lo añadas o lo excluyas explícitamente.
+
+### Notas de provisioning (cambios recientes)
+
+* **`linux-domain-join.sh`:** espera a que LDAP del DC responda, añade a `/etc/hosts` el nombre de cada DC (leído del registro SRV, porque Kerberos no acepta IPs) y el nombre completo del propio equipo, y reintenta la unión verificando `realm list`. Si no se une, deja `prov.error`.
+* **`dc1.ps1`:** crea `svc-backup` y escribe `map-drives.bat` en SYSVOL; la réplica llega a `dc2`.
+* **`client-win.ps1`:** crea `svc-helpdesk` como administrador local, habilita RDP y deja la cuenta antes de unirse al dominio.
+* **`app-php-fpm.sh`:** las sesiones se guardan en `/var/lib/php/tai-sessions` (usuario `nginx`). Sustituye la directiva que trae el paquete.
+* **`web-wordpress.sh`:** cambia `WP_DEBUG` existente a `true`; no añade una segunda definición.
+* **`web-iis.ps1` y `app-dotnet.ps1`:** sitios corporativos ficticios con plantilla común; el resto de fallos está en la tabla de escenarios.
+
+Para aplicar un cambio a una máquina ya desplegada: descarga el script desde `raw.githubusercontent.com` (o cópialo) y ejecútalo, o reproduce el cambio a mano. Las instancias no se actualizan solas al hacer push.
 
 ---
 
@@ -333,22 +348,33 @@ Que exista `prov.done` no garantiza que NTDS y LDAP estén listos. Pueden levant
 
 ## Verificación y estado
 
-Estado real de lo que se ha comprobado:
+Lo comprobado en el laboratorio desplegado (no solo revisión estática):
 
-| Elemento | Verificado |
+| Elemento | Resultado |
 |---|---|
-| Sintaxis de los scripts Bash modificados | Sí (`bash -n`) |
-| Sintaxis de los scripts PowerShell (`dc1.ps1`, `web-iis.ps1`, `client-win.ps1`) | No (no hay `pwsh` en el equipo de trabajo) |
-| Código PHP del portal de pedidos | No (no hay `php` en el equipo de trabajo) |
-| Zona DNS (`named-checkzone`) | No (se valida al provisionar `ops-dns-ntp`) |
-| Despliegue real en AWS | No (laboratorio no disponible durante la preparación) |
+| Unión de `linux-member` al dominio (`linux-domain-join.sh`) | Verificado tras corregir la resolución de nombres de Kerberos |
+| WordPress: `WP_DEBUG` y `debug.log` | Verificado (la definición duplicada impedía el log) |
+| nginx: login con enumeración (`Unknown user account.` / `Incorrect password for this account.`) | Verificado |
+| php-fpm: sesiones (`session.save_path`) y SQLi del buscador | Verificado (el error de sesiones desaparece; la SQLi produce el error esperado) |
+| PostgreSQL: `trust` desde `10.0.4.0/24` y `md5` desde el resto | Verificado desde `lin-client` (sin contraseña) y `ops-dns-ntp` (pide contraseña) |
+| dc2: replicación de `svc-backup` y del script de SYSVOL | Verificado (`repadmin` sin fallos) |
+| DNS: transferencia de zona `tai-internal.local` | Verificado (`dig axfr`) |
+| Tomcat Manager desde otra máquina | Verificado (HTTP 200) |
+| Intranet: listado de `/backup/` y configuración | Verificado |
+| Django: superusuario `admin` y `DEBUG` | Verificado |
+| web-iis: sitio corporativo, `/backup/`, `trace.axd` y enlace desde Careers | Verificado |
+| app-dotnet: IDOR en `report.aspx?id=2` y `id=3` | Verificado |
+| win-client-1: RDP con `svc-helpdesk` | Verificado |
+| bastion: herramientas y nota de traspaso | Verificado |
 
-Pendientes antes de dar el laboratorio por válido:
+Limitaciones de la verificación:
+- Los scripts PowerShell y PHP solo se han revisado estáticamente en este equipo (no hay `pwsh` ni `php`), pero las partes críticas se han probado en las máquinas.
+- El monitor de la DMZ se recreó durante un despliegue (su `wtmp` empieza al arrancar), así que su caída fue el arranque de una instancia nueva, no un fallo de servicio.
 
-* Desplegar y probar cada máquina vulnerable de forma aislada.
-* Comprobar la sintaxis de los scripts PowerShell y PHP en un entorno con las herramientas instaladas.
-* Verificar que el monitor de la DMZ sigue resolviendo `corp.local` tras cambiar el DNS de Ops a BIND.
-* Documentar `servicegateway` (10.0.0.75), que está en el YAML pero no tiene script asociado.
+Pendientes:
+* Decidir si se fijan las versiones de las imágenes del monitor (`monitor.sh` usa `latest`).
+* Decidir la ubicación de la guía del instructor (ver [Notas y límites](#notas-y-límites)).
+* `servicegateway` (10.0.0.75) existe en la plantilla sin script de provisioning.
 
 ---
 
@@ -380,7 +406,9 @@ Conviene usarlo al terminar una fase de despliegue, pruebas o estabilización.
 
 ## Copias de seguridad y marcha atrás
 
-Cada script modificado conserva su versión anterior junto a él:
+Los `.bk2` cubren el **primer lote** de cambios (nueve scripts). Los cambios posteriores tienen su versión anterior en el historial de Git (ver [Historial de cambios](#historial-de-cambios)).
+
+Cada script del primer lote conserva su versión anterior junto a él:
 
 | Script actual (se despliega) | Versión anterior (no se despliega) |
 |---|---|
@@ -401,6 +429,30 @@ Para revertir en GitHub, usa `git revert <commit>` y haz push. No reescribas `ma
 Las instancias ya desplegadas no cambian al hacer push: solo usan el código nuevo las instancias que se creen o reprovisionen después. Para devolver una máquina a su estado anterior, la opción más limpia es eliminar su stack y volver a crearlo con el código revertido.
 
 Lo que los scripts crean fuera de la instancia (cuentas de AD, datos de MongoDB, zona DNS) no se deshace al revertir el código. Hay que eliminarlo a mano o recrear el stack.
+
+---
+
+## Historial de cambios
+
+Commits sobre `main` desde la revisión inicial, de más antiguo a más reciente:
+
+| Commit | Cambio |
+|---|---|
+| `6b41600` | `.gitignore` y se deja de versionar copias de seguridad |
+| `22bbf98` | Vulnerabilidades en las máquinas restantes; README con inventario real |
+| `e4941ea`, `b00721d` | Guía de arquitectura y acceso para usuarios (sin puertos ni versiones) |
+| `ef57245` | `ops-monitor` en alcance; monitor de la DMZ fuera de alcance |
+| `8a3160b` | Bloque prioritario: app-dotnet, app-django, db-postgres, linux-member, dc1 (SYSVOL) y nginx |
+| `4048037`, `8e091f0` | Unión de `linux-member` al dominio (Kerberos y nombres de DC) |
+| `3929b4e` | WordPress: `WP_DEBUG` activo y registro funcionando |
+| `0a784cc` | Login de nginx con los dos DC |
+| `c9909b8` | Login de nginx: búsqueda del usuario antes de validar la contraseña |
+| `04e84c7` | php-fpm: sesiones en una carpeta escribible por `nginx` |
+| `eb0bff2` | Guía de acceso: `ProxyJump` para Linux y RDP por túnel desde el equipo propio |
+| `a03a0cb` | web-iis: frontal corporativo ficticio |
+| `1012e2e` | web-iis: `trace.axd`, `/backup/` y enlace al portal desde Careers |
+| `34a1da8` | app-dotnet: frontal de servicios clínicos con IDOR, clave de API y errores detallados |
+| `e8af343`, `ba28a8e` | `svc-helpdesk` en los puestos Windows y su credencial en el informe 3 |
 
 ---
 
@@ -442,7 +494,8 @@ Al borrar el stack, las instancias y sus datos desaparecen. Las cuentas de AD y 
 * El entorno tiene **33 instancias**: 9 en la DMZ, 24 en la MZ, más el host de PentAGI.
 * Hay cuatro instancias `c5.2xlarge` (`app-docker`, `ops-siem-elk`, `servicegateway` y el host de PentAGI, según su plantilla). Suman mucho consumo de vCPU: calcúlalo a partir de la tabla de inventario y verifica la cuota On-Demand y el coste antes de desplegar.
 * Las estaciones Windows usan **Windows Server 2022**, porque Windows 10/11 exige imágenes Marketplace, bloqueadas en PX.
-* **Visibilidad del repositorio:** las instancias leen los scripts desde GitHub con URLs `raw`. Si el repositorio es público, cualquier fallo documentado aquí es visible para cualquiera. Si el laboratorio se usa en formación, conviene mantener las soluciones en un documento privado.
+* **Visibilidad del repositorio:** las instancias leen los scripts desde GitHub con URLs `raw`. Si el repositorio es público, cualquier fallo documentado aquí es visible para cualquiera. **Las soluciones y las cadenas de ataque no deben publicarse en el mismo repositorio que el laboratorio**: se guardan fuera de él, en un documento privado para el instructor.
+* **Contraseñas publicadas:** varias credenciales de este README están en el código del repositorio (ver la tabla de credenciales). Es intencionado para el laboratorio, y tiene la consecuencia de que cualquiera con acceso a `main` las conoce.
 * `scripts/wordpress/index.html` no lo referencia ningún script.
 
 > ⚠️ **Las credenciales de este documento están destinadas exclusivamente al laboratorio. No reutilizarlas en entornos reales ni expuestos a Internet.**
