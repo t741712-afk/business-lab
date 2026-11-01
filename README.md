@@ -495,8 +495,7 @@ Al borrar el stack, las instancias y sus datos desaparecen. Las cuentas de AD y 
 * El entorno tiene **33 instancias**: 9 en la DMZ, 24 en la MZ, más el host de PentAGI.
 * Hay cuatro instancias `c5.2xlarge` (`app-docker`, `ops-siem-elk`, `servicegateway` y el host de PentAGI, según su plantilla). Suman mucho consumo de vCPU: calcúlalo a partir de la tabla de inventario y verifica la cuota On-Demand y el coste antes de desplegar.
 * Las estaciones Windows usan **Windows Server 2022**, porque Windows 10/11 exige imágenes Marketplace, bloqueadas en PX.
-* **Visibilidad del repositorio:** el repositorio se pondrá privado antes de empezar el juego. Las instancias leen los scripts desde GitHub con URLs `raw`, así que mientras esté público, cualquiera puede leer los fallos.
-* (Texto previo, ya no aplica tras privatizar:) Si el repositorio es público, cualquier fallo documentado aquí es visible para cualquiera. **Las soluciones y las cadenas de ataque no deben publicarse en el mismo repositorio que el laboratorio**: se guardan fuera de él, en un documento privado para el instructor.
+* **Visibilidad del repositorio:** el repositorio se pondrá privado antes de empezar el juego. Las instancias leen los scripts desde GitHub con URLs `raw`, así que mientras sea público, cualquiera puede leer los fallos. **Las soluciones y las cadenas de ataque no van en este repositorio**: están en un documento privado para el instructor.
 * **Contraseñas publicadas:** varias credenciales de este README están en el código del repositorio (ver la tabla de credenciales). Es intencionado para el laboratorio, y tiene la consecuencia de que cualquiera con acceso a `main` las conoce.
 * `scripts/wordpress/index.html` no lo referencia ningún script.
 
