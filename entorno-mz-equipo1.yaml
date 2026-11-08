@@ -10,6 +10,18 @@ Description: >
 
 # ---------------------------------------------------------------------------
 Parameters:
+  TrendTenantId:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Tenant ID de Trend Micro Deep Security. Vacio = no se instala el agente.
+
+  TrendToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Token de activacion del agente de Trend Micro Deep Security.
+
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
@@ -147,6 +159,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/dc1.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -AdminPassword "${WindowsAdminPassword}"
           </powershell>
 
@@ -170,6 +189,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/dc2.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}"
           </powershell>
 
@@ -193,6 +219,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/file-smb.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}"
           </powershell>
 
@@ -215,6 +248,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/mail-postfix.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; DOMAIN="${DomainName}" bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   Intranet:                               # Intranet interna (web Linux)
     Type: AWS::EC2::Instance
@@ -235,6 +272,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/intranet.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   LinuxMember:                            # Linux unido al dominio (realm/SSSD)
     Type: AWS::EC2::Instance
@@ -256,6 +297,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/linux-domain-join.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; DOMAIN="${DomainName}" DCIP="${DcIp}" ADMINPASS="${WindowsAdminPassword}" bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   # =========================================================================
   # ===  APP TIER  (subred 10.0.1.0/24)  ====================================
@@ -279,6 +324,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-tomcat.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   AppNode:
     Type: AWS::EC2::Instance
@@ -299,6 +348,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-node.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   AppDotnet:
     Type: AWS::EC2::Instance
@@ -319,6 +372,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/app-dotnet.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -AdminPassword "${WindowsAdminPassword}"
           </powershell>
 
@@ -341,6 +401,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-django.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   AppPhpFpm:
     Type: AWS::EC2::Instance
@@ -361,6 +425,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-php-fpm.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   AppDocker:
     Type: AWS::EC2::Instance
@@ -381,6 +449,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-docker.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   # =========================================================================
   # ===  DATA TIER  (subred 10.0.2.0/24)  ===================================
@@ -404,6 +476,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-mysql.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   DbPostgres:
     Type: AWS::EC2::Instance
@@ -424,6 +500,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-postgres.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   DbMssql:
     Type: AWS::EC2::Instance
@@ -444,6 +524,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/db-mssql.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -AdminPassword "${WindowsAdminPassword}"
           </powershell>
 
@@ -466,6 +553,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-mongo-redis.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   # =========================================================================
   # ===  CLIENTES  (subred 10.0.4.0/24)  ====================================
@@ -490,6 +581,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/client-win.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}" -NewName "WIN-CLIENT-1"
           </powershell>
 
@@ -513,6 +611,13 @@ Resources:
           [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
           $f="C:\prov.ps1"
           for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/client-win.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          if ("${TrendTenantId}" -ne "") {
+            $t = "C:\trend-agent.ps1"
+            Invoke-WebRequest "${ScriptBaseUrl}/trend-agent.ps1" -OutFile $t -UseBasicParsing
+            $a = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $t -TenantId ${TrendTenantId} -Token ${TrendToken}"
+            Register-ScheduledTask -TaskName TrendAgentInstall -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
+            powershell -ExecutionPolicy Bypass -File $t -TenantId "${TrendTenantId}" -Token "${TrendToken}"
+          }
           powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}" -NewName "WIN-CLIENT-2"
           </powershell>
 
@@ -535,6 +640,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/client-linux.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   # =========================================================================
   # ===  OPS / SERVICIOS TRANSVERSALES  (subred 10.0.5.0/24)  ===============
@@ -558,6 +667,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-dns-ntp.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   OpsMonitor:
     Type: AWS::EC2::Instance
@@ -578,6 +691,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-monitor.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   OpsSiem:
     Type: AWS::EC2::Instance
@@ -598,6 +715,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-elk.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   OpsNfs:
     Type: AWS::EC2::Instance
@@ -618,6 +739,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-nfs.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
   OpsCi:
     Type: AWS::EC2::Instance
@@ -638,6 +763,10 @@ Resources:
           exec > /var/log/bootstrap.log 2>&1
           for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-jenkins.sh" -o /tmp/p.sh && break; sleep 15; done
           chmod +x /tmp/p.sh; bash /tmp/p.sh
+          if [ -n "${TrendTenantId}" ]; then
+            for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/trend-agent.sh" -o /tmp/trend.sh && break; sleep 15; done
+            bash /tmp/trend.sh "${TrendTenantId}" "${TrendToken}" || echo "trend-agent: fallo la instalacion" >> /var/log/bootstrap.log
+          fi
 
 # ---------------------------------------------------------------------------
 Outputs:
