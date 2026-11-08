@@ -152,7 +152,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: dc1 }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: dc1-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -182,7 +182,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: dc2 }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: dc2-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -212,7 +212,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: fileserver }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: fileserver-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -241,7 +241,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: mailserver }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: mailserver-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -265,7 +265,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: intranet }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: intranet-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -290,7 +290,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: linux-member }, { Key: Zone, Value: corp }]
+      Tags: [{ Key: Name, Value: linux-member-equipo1 }, { Key: Zone, Value: corp }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -317,7 +317,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-tomcat }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-tomcat-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -341,7 +341,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-node }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-node-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -365,7 +365,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-dotnet }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-dotnet-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -394,7 +394,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-django }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-django-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -418,7 +418,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-php-fpm }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-php-fpm-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -442,7 +442,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 40, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: app-docker }, { Key: Zone, Value: app }]
+      Tags: [{ Key: Name, Value: app-docker-equipo1 }, { Key: Zone, Value: app }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -469,7 +469,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: db-mysql }, { Key: Zone, Value: data }]
+      Tags: [{ Key: Name, Value: db-mysql-equipo1 }, { Key: Zone, Value: data }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -493,7 +493,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: db-postgres }, { Key: Zone, Value: data }]
+      Tags: [{ Key: Name, Value: db-postgres-equipo1 }, { Key: Zone, Value: data }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -517,7 +517,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: db-mssql }, { Key: Zone, Value: data }]
+      Tags: [{ Key: Name, Value: db-mssql-equipo1 }, { Key: Zone, Value: data }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -546,7 +546,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: db-mongo-redis }, { Key: Zone, Value: data }]
+      Tags: [{ Key: Name, Value: db-mongo-redis-equipo1 }, { Key: Zone, Value: data }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -574,7 +574,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: win-client-1 }, { Key: Zone, Value: clients }]
+      Tags: [{ Key: Name, Value: win-client-1-equipo1 }, { Key: Zone, Value: clients }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -604,7 +604,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: win-client-2 }, { Key: Zone, Value: clients }]
+      Tags: [{ Key: Name, Value: win-client-2-equipo1 }, { Key: Zone, Value: clients }]
       UserData:
         Fn::Base64: !Sub |
           <powershell>
@@ -633,7 +633,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: lin-client }, { Key: Zone, Value: clients }]
+      Tags: [{ Key: Name, Value: lin-client-equipo1 }, { Key: Zone, Value: clients }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -660,7 +660,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: ops-dns-ntp }, { Key: Zone, Value: ops }]
+      Tags: [{ Key: Name, Value: ops-dns-ntp-equipo1 }, { Key: Zone, Value: ops }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -684,7 +684,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: ops-monitor }, { Key: Zone, Value: ops }]
+      Tags: [{ Key: Name, Value: ops-monitor-equipo1 }, { Key: Zone, Value: ops }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -708,7 +708,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: ops-siem-elk }, { Key: Zone, Value: ops }]
+      Tags: [{ Key: Name, Value: ops-siem-elk-equipo1 }, { Key: Zone, Value: ops }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -732,7 +732,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: ops-nfs-backup }, { Key: Zone, Value: ops }]
+      Tags: [{ Key: Name, Value: ops-nfs-backup-equipo1 }, { Key: Zone, Value: ops }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -756,7 +756,7 @@ Resources:
       MetadataOptions: { HttpTokens: required }
       BlockDeviceMappings:
         - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
-      Tags: [{ Key: Name, Value: ops-jenkins-ci }, { Key: Zone, Value: ops }]
+      Tags: [{ Key: Name, Value: ops-jenkins-ci-equipo1 }, { Key: Zone, Value: ops }]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash

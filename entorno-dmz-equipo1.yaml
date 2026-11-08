@@ -193,7 +193,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: bastion }
+        - { Key: Name, Value: bastion-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -223,7 +223,7 @@ Resources:
             VolumeSize: 300
             VolumeType: gp3
       Tags:
-        - { Key: Name, Value: servicegateway }
+        - { Key: Name, Value: servicegateway-equipo1 }
         - { Key: Zone, Value: dmz }
 
   # --- Load Balancer (HAProxy/Nginx) --------------------------------------
@@ -241,7 +241,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: loadbalancer }
+        - { Key: Name, Value: loadbalancer-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -269,7 +269,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-nginx-1-intranet }
+        - { Key: Name, Value: web-nginx-1-intranet-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -297,7 +297,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 25, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-wordpress }
+        - { Key: Name, Value: web-wordpress-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -325,7 +325,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-apache-1-public }
+        - { Key: Name, Value: web-apache-1-public-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -353,7 +353,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-apache-2-public }
+        - { Key: Name, Value: web-apache-2-public-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -381,7 +381,7 @@ Resources:
         - DeviceName: /dev/sda1
           Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: web-iis }
+        - { Key: Name, Value: web-iis-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
@@ -412,7 +412,7 @@ Resources:
         - DeviceName: /dev/xvda
           Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 }
       Tags:
-        - { Key: Name, Value: monitor }
+        - { Key: Name, Value: monitor-equipo1 }
         - { Key: Zone, Value: dmz }
       UserData:
         Fn::Base64: !Sub |
