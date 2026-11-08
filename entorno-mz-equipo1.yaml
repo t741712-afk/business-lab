@@ -769,6 +769,41 @@ Resources:
           fi
 
 # ---------------------------------------------------------------------------
+  # =========================================================================
+  # ===  ZTSA PRIVATE CONNECTOR  (subred mz-ops 10.0.5.0/24)  ===============
+  # =========================================================================
+  # Adaptado de la plantilla de conector privado ZTSA (Japan). Cambios respecto al original:
+  # - Sin clave publica personal: acceso con el KeyPair del laboratorio.
+  # - Sin instalacion de SSM: el laboratorio no tiene IAM role.
+  # - SSH limitado a AllowedAdminCidr (el original abria 22 y 3389 a 0.0.0.0/0).
+  # - Disco cifrado e IMDSv2, como el resto de instancias (requisito PX).
+  ZtsaConnectorSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Conector privado ZTSA - acceso de administracion y trafico interno
+      VpcId: !ImportValue business-lab-VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AllowedAdminCidr }
+        - { IpProtocol: -1, CidrIp: !ImportValue business-lab-VpcCidr }
+      Tags: [{ Key: Name, Value: ztsa-connector-sg-equipo1 }]
+
+  ZtsaConnector:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0a520ca8b8a290243
+      InstanceType: c5.2xlarge
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.16
+      SecurityGroupIds: [!Ref ZtsaConnectorSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags:
+        - { Key: Name, Value: ztsa-private-connector-equipo1 }
+        - { Key: Zone, Value: ops }
+        - { Key: Environment, Value: Lab }
+
 Outputs:
   DomainName:
     Value: !Ref DomainName
