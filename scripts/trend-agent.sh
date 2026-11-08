@@ -27,6 +27,12 @@ case "$ID" in
 esac
 
 
+# Ubuntu Server no trae unzip de serie (Amazon Linux sí): se instala si falta
+if ! command -v unzip >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get update -y
+  DEBIAN_FRONTEND=noninteractive apt-get install -y unzip
+fi
+
 mkdir -p "$WORK"
 cd "$WORK"
 curl -fsSL -o agent.zip "$PKG_URL"
