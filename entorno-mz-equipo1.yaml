@@ -1,0 +1,650 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Business-Lab  ·  STACK 2/2  ·  MZ (zona interna empresarial).
+  IMPORTA la red del stack DMZ y crea 5 subredes privadas (app/datos/corp/
+  clientes/ops) con 24 maquinas: app servers, BBDD, Active Directory, correo,
+  intranet, clientes y operaciones (DNS/SIEM/monitor/NFS/CI).
+  Mismas restricciones PX que el stack DMZ (us-east-1, t2/t3+c5.2xlarge, sin
+  GPU/m5/Marketplace, sin IAM role, IMDSv2 + EBS cifrado).
+  Desplegar DESPUES de business-lab-dmz. Borrar ANTES que el.
+
+# ---------------------------------------------------------------------------
+Parameters:
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: corp-lab
+
+  AllowedAdminCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+
+  ScriptBaseUrl:
+    Type: String
+    Default: https://raw.githubusercontent.com/t741712-afk/business-lab/main/scripts
+
+  DomainName:
+    Type: String
+    Default: corp.local
+
+  DcIp:
+    Type: String
+    Default: 10.0.3.10
+    Description: IP fija del Domain Controller DC1.
+
+  WindowsAdminPassword:
+    Type: String
+    Default: BusinessLab#2026
+    NoEcho: true
+
+  AZ:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+
+  AppSubnetCidr:      { Type: String, Default: 10.0.1.0/24 }
+  DataSubnetCidr:     { Type: String, Default: 10.0.2.0/24 }
+  CorpSubnetCidr:     { Type: String, Default: 10.0.3.0/24 }
+  ClientsSubnetCidr:  { Type: String, Default: 10.0.4.0/24 }
+  OpsSubnetCidr:      { Type: String, Default: 10.0.5.0/24 }
+
+  AmiAmazonLinux:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  AmiUbuntu:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+  AmiWindows:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+
+# ---------------------------------------------------------------------------
+Resources:
+
+  # === Subredes privadas (en la VPC importada del stack DMZ) ===============
+  AppSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue business-lab-VpcId
+      CidrBlock: !Ref AppSubnetCidr
+      AvailabilityZone: !Ref AZ
+      Tags: [{ Key: Name, Value: mz-app }]
+  DataSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue business-lab-VpcId
+      CidrBlock: !Ref DataSubnetCidr
+      AvailabilityZone: !Ref AZ
+      Tags: [{ Key: Name, Value: mz-data }]
+  CorpSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue business-lab-VpcId
+      CidrBlock: !Ref CorpSubnetCidr
+      AvailabilityZone: !Ref AZ
+      Tags: [{ Key: Name, Value: mz-corp }]
+  ClientsSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue business-lab-VpcId
+      CidrBlock: !Ref ClientsSubnetCidr
+      AvailabilityZone: !Ref AZ
+      Tags: [{ Key: Name, Value: mz-clients }]
+  OpsSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !ImportValue business-lab-VpcId
+      CidrBlock: !Ref OpsSubnetCidr
+      AvailabilityZone: !Ref AZ
+      Tags: [{ Key: Name, Value: mz-ops }]
+
+  # Asociar las 5 subredes a la route table privada (NAT) del stack DMZ
+  AppRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref AppSubnet,     RouteTableId: !ImportValue business-lab-PrivateRtId }
+  DataRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref DataSubnet,    RouteTableId: !ImportValue business-lab-PrivateRtId }
+  CorpRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref CorpSubnet,    RouteTableId: !ImportValue business-lab-PrivateRtId }
+  ClientsRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref ClientsSubnet, RouteTableId: !ImportValue business-lab-PrivateRtId }
+  OpsRtAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref OpsSubnet,     RouteTableId: !ImportValue business-lab-PrivateRtId }
+
+  # === Security Group interno (lab: trafico libre intra-VPC) ===============
+  InternalSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MZ interno - trafico libre dentro de la VPC
+      VpcId: !ImportValue business-lab-VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: -1, CidrIp: !ImportValue business-lab-VpcCidr }
+      Tags: [{ Key: Name, Value: mz-internal-sg }]
+
+  # =========================================================================
+  # ===  CORP / ACTIVE DIRECTORY  (subred 10.0.3.0/24)  =====================
+  # =========================================================================
+  DomainController:                       # DC1 - AD DS + DNS + DHCP del dominio
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: !Ref DcIp
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: dc1 }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/dc1.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  DomainController2:                      # DC2 - replica (se une como DC adicional)
+    Type: AWS::EC2::Instance
+    DependsOn: DomainController
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: 10.0.3.11
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: dc2 }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/dc2.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  FileServer:                             # File server Windows (SMB shares)
+    Type: AWS::EC2::Instance
+    DependsOn: DomainController
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: 10.0.3.12
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: fileserver }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/file-smb.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  MailServer:                             # Correo Linux (Postfix + Dovecot)
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: 10.0.3.13
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: mailserver }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/mail-postfix.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; DOMAIN="${DomainName}" bash /tmp/p.sh
+
+  Intranet:                               # Intranet interna (web Linux)
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: 10.0.3.14
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: intranet }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/intranet.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  LinuxMember:                            # Linux unido al dominio (realm/SSSD)
+    Type: AWS::EC2::Instance
+    DependsOn: DomainController
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref CorpSubnet
+      PrivateIpAddress: 10.0.3.15
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: linux-member }, { Key: Zone, Value: corp }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/linux-domain-join.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; DOMAIN="${DomainName}" DCIP="${DcIp}" ADMINPASS="${WindowsAdminPassword}" bash /tmp/p.sh
+
+  # =========================================================================
+  # ===  APP TIER  (subred 10.0.1.0/24)  ====================================
+  # =========================================================================
+  AppTomcat:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.11
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-tomcat }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-tomcat.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  AppNode:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.12
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-node }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-node.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  AppDotnet:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.13
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-dotnet }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/app-dotnet.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  AppDjango:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.14
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-django }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-django.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  AppPhpFpm:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.15
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-php-fpm }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-php-fpm.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  AppDocker:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: c5.2xlarge
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      PrivateIpAddress: 10.0.1.16
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 40, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: app-docker }, { Key: Zone, Value: app }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/app-docker.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # =========================================================================
+  # ===  DATA TIER  (subred 10.0.2.0/24)  ===================================
+  # =========================================================================
+  DbMysql:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref DataSubnet
+      PrivateIpAddress: 10.0.2.11
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: db-mysql }, { Key: Zone, Value: data }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-mysql.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  DbPostgres:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref DataSubnet
+      PrivateIpAddress: 10.0.2.12
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: db-postgres }, { Key: Zone, Value: data }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-postgres.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  DbMssql:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.large
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref DataSubnet
+      PrivateIpAddress: 10.0.2.13
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: db-mssql }, { Key: Zone, Value: data }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/db-mssql.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -AdminPassword "${WindowsAdminPassword}"
+          </powershell>
+
+  DbNosql:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref DataSubnet
+      PrivateIpAddress: 10.0.2.14
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: db-mongo-redis }, { Key: Zone, Value: data }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/db-mongo-redis.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # =========================================================================
+  # ===  CLIENTES  (subred 10.0.4.0/24)  ====================================
+  # =========================================================================
+  WinClient1:
+    Type: AWS::EC2::Instance
+    DependsOn: DomainController
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ClientsSubnet
+      PrivateIpAddress: 10.0.4.11
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: win-client-1 }, { Key: Zone, Value: clients }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/client-win.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}" -NewName "WIN-CLIENT-1"
+          </powershell>
+
+  WinClient2:
+    Type: AWS::EC2::Instance
+    DependsOn: DomainController
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiWindows
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ClientsSubnet
+      PrivateIpAddress: 10.0.4.12
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 50, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: win-client-2 }, { Key: Zone, Value: clients }]
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+          $f="C:\prov.ps1"
+          for($i=0;$i -lt 10;$i++){ try{ Invoke-WebRequest "${ScriptBaseUrl}/client-win.ps1" -OutFile $f -UseBasicParsing; break }catch{ Start-Sleep 15 } }
+          powershell -ExecutionPolicy Bypass -File $f -DomainName "${DomainName}" -DcIp "${DcIp}" -AdminPassword "${WindowsAdminPassword}" -NewName "WIN-CLIENT-2"
+          </powershell>
+
+  LinClient:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ClientsSubnet
+      PrivateIpAddress: 10.0.4.13
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: lin-client }, { Key: Zone, Value: clients }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/client-linux.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  # =========================================================================
+  # ===  OPS / SERVICIOS TRANSVERSALES  (subred 10.0.5.0/24)  ===============
+  # =========================================================================
+  OpsDns:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.11
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 20, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: ops-dns-ntp }, { Key: Zone, Value: ops }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-dns-ntp.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  OpsMonitor:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.12
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: ops-monitor }, { Key: Zone, Value: ops }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-monitor.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  OpsSiem:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: c5.2xlarge
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.13
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: ops-siem-elk }, { Key: Zone, Value: ops }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-elk.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  OpsNfs:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: !Ref AmiAmazonLinux
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.14
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/xvda, Ebs: { VolumeSize: 60, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: ops-nfs-backup }, { Key: Zone, Value: ops }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-nfs.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+  OpsCi:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: !Ref AmiUbuntu
+      KeyName: !Ref KeyName
+      SubnetId: !Ref OpsSubnet
+      PrivateIpAddress: 10.0.5.15
+      SecurityGroupIds: [!Ref InternalSg]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - { DeviceName: /dev/sda1, Ebs: { VolumeSize: 30, Encrypted: true, VolumeType: gp3 } }
+      Tags: [{ Key: Name, Value: ops-jenkins-ci }, { Key: Zone, Value: ops }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/bootstrap.log 2>&1
+          for i in $(seq 1 10); do curl -fsSL "${ScriptBaseUrl}/ops-jenkins.sh" -o /tmp/p.sh && break; sleep 15; done
+          chmod +x /tmp/p.sh; bash /tmp/p.sh
+
+# ---------------------------------------------------------------------------
+Outputs:
+  DomainName:
+    Value: !Ref DomainName
+  Dc1Ip:
+    Value: 10.0.3.10
+  Resumen:
+    Description: Maquinas desplegadas en MZ
+    Value: "24 maquinas: app(6) datos(4) corp/AD(6) clientes(3) ops(5)"
