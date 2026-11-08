@@ -13,7 +13,10 @@ umask 077
 REPO_URL="https://github.com/vxcontrol/pentagi.git"
 
 # Detectar el usuario original incluso cuando se ejecuta con sudo.
-if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+# PENTAGI_TARGET_USER permite instalar para un usuario concreto (p. ej. cuando se ejecuta desde UserData como root).
+if [[ -n "${PENTAGI_TARGET_USER:-}" ]]; then
+    TARGET_USER="${PENTAGI_TARGET_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
     TARGET_USER="${SUDO_USER}"
 else
     TARGET_USER="${USER:-$(id -un)}"
@@ -261,18 +264,23 @@ echo "============================================================"
 echo " CONFIGURACIÓN DE APIs"
 echo "============================================================"
 echo
-echo "Introduce las claves API."
-echo "No se mostrarán mientras las escribes."
-echo
+# Las claves pueden venir ya en el entorno (despliegue automatico desde CloudFormation);
+# si no, se piden por teclado como antes.
+if [[ -z "${DEEPSEEK_KEY:-}" || -z "${JINA_KEY:-}" ]]; then
+    echo "Introduce las claves API."
+    echo "No se mostrarán mientras las escribes."
+    echo
+fi
 
-read -r -s -p "DeepSeek API key: " DEEPSEEK_KEY
-echo
+if [[ -z "${DEEPSEEK_KEY:-}" ]]; then
+    read -r -s -p "DeepSeek API key: " DEEPSEEK_KEY
+    echo
+fi
 
-read -r -s -p "Jina API key: " JINA_KEY
-echo
-
-read -r -s -p "OpenRouter API key: " OPENROUTER_KEY
-echo
+if [[ -z "${JINA_KEY:-}" ]]; then
+    read -r -s -p "Jina API key: " JINA_KEY
+    echo
+fi
 
 if [[ -z "${DEEPSEEK_KEY}" ]]; then
     error_exit "La clave de DeepSeek está vacía."
@@ -282,15 +290,10 @@ if [[ -z "${JINA_KEY}" ]]; then
     error_exit "La clave de Jina está vacía."
 fi
 
-if [[ -z "${OPENROUTER_KEY}" ]]; then
-    error_exit "La clave de OpenRouter está vacía."
-fi
-
 info "Guardando configuración de APIs en .env..."
 
 DEEPSEEK_KEY="${DEEPSEEK_KEY}" \
 JINA_KEY="${JINA_KEY}" \
-OPENROUTER_KEY="${OPENROUTER_KEY}" \
 INSTALL_DIR="${INSTALL_DIR}" \
 python3 <<'PY'
 import os
@@ -303,10 +306,6 @@ text = path.read_text()
 settings = {
     "DEEPSEEK_API_KEY": os.environ["DEEPSEEK_KEY"],
     "DEEPSEEK_SERVER_URL": "https://api.deepseek.com",
-
-    "LLM_SERVER_URL": "https://openrouter.ai/api/v1",
-    "LLM_SERVER_KEY": os.environ["OPENROUTER_KEY"],
-    "LLM_SERVER_MODEL": "nex-agi/nex-n2.5-pro",
 
     "EMBEDDING_URL": "https://api.jina.ai/v1",
     "EMBEDDING_KEY": os.environ["JINA_KEY"],
@@ -341,7 +340,6 @@ PY
 
 unset DEEPSEEK_KEY
 unset JINA_KEY
-unset OPENROUTER_KEY
 
 chown "${TARGET_USER}:$(id -gn "${TARGET_USER}")" \
     "${INSTALL_DIR}/.env"

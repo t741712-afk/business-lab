@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  AWS Pentest Lab — PentAGI en host Ubuntu (Red 10.100.0.0/24).
-  Instancia limpia sin software preinstalado (actualizacion de repositorios unicamente).
+  AWS Pentest Lab — 3 hosts PentAGI en Ubuntu 22.04 (Red 10.100.0.0/16, subred 10.100.0.0/24).
+  PentAGI se instala automaticamente con pentagi_deploy.sh (claves de API como parametros NoEcho).
   ADAPTADO A LAS RESTRICCIONES SCP DE PX (Trend Micro):
     * Region unica: us-east-1
     * Tipos permitidos: t2/t3 hasta xlarge, c5.2xlarge. SIN GPU, sin m5.
@@ -17,20 +17,20 @@ Parameters:
   AllowedAdminCidr:
     Type: String
     Description: >
-      OBLIGATORIO. Tu IP publica en formato CIDR /32 (ej. 88.1.2.3/32) para SSH y PentAGI.
-      Averiguala con: curl -s https://amazonaws.com
+      OBLIGATORIO. Tu IP publica en formato CIDR /32 (ej. 88.1.2.3/32). Da acceso SSH (22) y
+      a la interfaz de PentAGI (8443). Obtenerla con: curl -s https://checkip.amazonaws.com
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
     Default: corp-lab
-    Description: Nombre de un Key Pair YA EXISTENTE en AWS (por defecto corp-labo).
+    Description: Nombre de un Key Pair YA EXISTENTE en AWS (por defecto corp-lab).
 
   InstanceType:
     Type: String
     Default: c5.2xlarge
     AllowedValues:
       - c5.2xlarge
-    Description: Atacante en c5.2xlarge fijo (8 vCPU, lo mejor para CPU en PX).
+    Description: PentAGI en c5.2xlarge fijo (8 vCPU, lo mejor para CPU en PX).
 
   VolumeSize:
     Type: Number
@@ -38,6 +38,36 @@ Parameters:
     MinValue: 50
     MaxValue: 500
     Description: Tamano del disco raiz en GB (gp3).
+
+  DeepSeekApiKey1:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de DeepSeek para PentAGI-1.
+
+  JinaApiKey1:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de Jina (embeddings) para PentAGI-1.
+
+  DeepSeekApiKey2:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de DeepSeek para PentAGI-2.
+
+  JinaApiKey2:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de Jina (embeddings) para PentAGI-2.
+
+  DeepSeekApiKey3:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de DeepSeek para PentAGI-3.
+
+  JinaApiKey3:
+    Type: String
+    NoEcho: true
+    Description: Clave de API de Jina (embeddings) para PentAGI-3.
 
   AmiUbuntu2204:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -108,22 +138,22 @@ Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: SG pentest-lab (ABIERTO TOTAL - Cualquier origen, puerto y protocolo)
+      GroupDescription: SG pentest-lab - SSH y PentAGI solo desde AllowedAdminCidr
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: "-1"          # "-1" significa TODOS los protocolos (TCP, UDP, ICMP, etc.)
-          CidrIp: 0.0.0.0/0          # Permite el acceso desde cualquier IP del mundo
-          Description: Apertura total de entrada para pruebas de laboratorio
+        - { IpProtocol: tcp, FromPort: 22,   ToPort: 22,   CidrIp: !Ref AllowedAdminCidr, Description: SSH de administracion }
+        - { IpProtocol: tcp, FromPort: 8443, ToPort: 8443, CidrIp: !Ref AllowedAdminCidr, Description: Interfaz web de PentAGI }
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
-          Description: Salida libre (descargas, repositorios, LLM APIs)
+          Description: Salida libre (descargas, repositorios, APIs de LLM)
       Tags:
         - Key: Name
           Value: pentest-lab-sg
 
-  InstanceKaliAI:
+  PentAGI1:
     Type: AWS::EC2::Instance
+    DependsOn: IGWAttachment
     Properties:
       InstanceType: !Ref InstanceType
       ImageId: !Ref AmiUbuntu2204
@@ -147,16 +177,22 @@ Resources:
             VolumeType: gp3
             Encrypted: true
       UserData:
-        Fn::Base64: |
+        Fn::Base64: !Sub |
           #!/bin/bash
-          # Unicamente actualizar la lista de paquetes disponibles
           apt-get update -y
+          # Instalacion automatica de PentAGI con las claves de esta instancia
+          export DEEPSEEK_KEY='${DeepSeekApiKey1}'
+          export JINA_KEY='${JinaApiKey1}'
+          export PENTAGI_TARGET_USER=ubuntu
+          curl -fsSL https://raw.githubusercontent.com/t741712-afk/business-lab/main/pentagi_deploy.sh -o /root/pentagi_deploy.sh
+          bash /root/pentagi_deploy.sh > /var/log/pentagi-deploy.log 2>&1
       Tags:
         - Key: Name
-          Value: PentAGI
+          Value: PentAGI-1
 
-  InstanceKaliAI2:
+  PentAGI2:
     Type: AWS::EC2::Instance
+    DependsOn: IGWAttachment
     Properties:
       InstanceType: !Ref InstanceType
       ImageId: !Ref AmiUbuntu2204
@@ -180,30 +216,89 @@ Resources:
             VolumeType: gp3
             Encrypted: true
       UserData:
-        Fn::Base64: |
+        Fn::Base64: !Sub |
           #!/bin/bash
-          # Unicamente actualizar la lista de paquetes disponibles
           apt-get update -y
+          # Instalacion automatica de PentAGI con las claves de esta instancia
+          export DEEPSEEK_KEY='${DeepSeekApiKey2}'
+          export JINA_KEY='${JinaApiKey2}'
+          export PENTAGI_TARGET_USER=ubuntu
+          curl -fsSL https://raw.githubusercontent.com/t741712-afk/business-lab/main/pentagi_deploy.sh -o /root/pentagi_deploy.sh
+          bash /root/pentagi_deploy.sh > /var/log/pentagi-deploy.log 2>&1
       Tags:
         - Key: Name
-          Value: PentAGI2
+          Value: PentAGI-2
+
+  PentAGI3:
+    Type: AWS::EC2::Instance
+    DependsOn: IGWAttachment
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiUbuntu2204
+      KeyName: !Ref KeyName
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 2
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: "true"
+          DeleteOnTermination: true
+          SubnetId: !Ref SubnetPublic
+          GroupSet:
+            - !GetAtt SecurityGroup.GroupId
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            Encrypted: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          # Instalacion automatica de PentAGI con las claves de esta instancia
+          export DEEPSEEK_KEY='${DeepSeekApiKey3}'
+          export JINA_KEY='${JinaApiKey3}'
+          export PENTAGI_TARGET_USER=ubuntu
+          curl -fsSL https://raw.githubusercontent.com/t741712-afk/business-lab/main/pentagi_deploy.sh -o /root/pentagi_deploy.sh
+          bash /root/pentagi_deploy.sh > /var/log/pentagi-deploy.log 2>&1
+      Tags:
+        - Key: Name
+          Value: PentAGI-3
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  OUTPUTS
 # ──────────────────────────────────────────────────────────────────────────────
 Outputs:
 
-  PublicIP:
-    Description: IP publica de la instancia PentAGI
-    Value: !GetAtt InstanceKaliAI.PublicIp
-  PublicIP2:
-    Description: IP publica de la instancia PentAGI2
-    Value: !GetAtt InstanceKaliAI2.PublicIp
+  PentAGI1PublicIP:
+    Description: IP publica de PentAGI-1
+    Value: !GetAtt PentAGI1.PublicIp
+  PentAGI2PublicIP:
+    Description: IP publica de PentAGI-2
+    Value: !GetAtt PentAGI2.PublicIp
+  PentAGI3PublicIP:
+    Description: IP publica de PentAGI-3
+    Value: !GetAtt PentAGI3.PublicIp
 
-  SSHCommandUbuntu:
-    Description: Redireccion de conexion SSH directa al host
-    Value: !Sub 'ssh -i ${KeyName}.pem ubuntu@${InstanceKaliAI.PublicIp}'
+  PentAGI1SSH:
+    Description: Comando SSH a PentAGI-1
+    Value: !Sub 'ssh -i ${KeyName}.pem ubuntu@${PentAGI1.PublicIp}'
+  PentAGI2SSH:
+    Description: Comando SSH a PentAGI-2
+    Value: !Sub 'ssh -i ${KeyName}.pem ubuntu@${PentAGI2.PublicIp}'
+  PentAGI3SSH:
+    Description: Comando SSH a PentAGI-3
+    Value: !Sub 'ssh -i ${KeyName}.pem ubuntu@${PentAGI3.PublicIp}'
 
-  PentAGIURL:
-    Description: Enlace de acceso para PentAGI
-    Value: !Sub 'https://${InstanceKaliAI.PublicIp}:8443'
+  PentAGI1URL:
+    Description: Interfaz web de PentAGI-1
+    Value: !Sub 'https://${PentAGI1.PublicIp}:8443'
+  PentAGI2URL:
+    Description: Interfaz web de PentAGI-2
+    Value: !Sub 'https://${PentAGI2.PublicIp}:8443'
+  PentAGI3URL:
+    Description: Interfaz web de PentAGI-3
+    Value: !Sub 'https://${PentAGI3.PublicIp}:8443'
