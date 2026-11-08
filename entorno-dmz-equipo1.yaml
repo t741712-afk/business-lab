@@ -182,7 +182,7 @@ Resources:
   Bastion:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.micro
+      InstanceType: t3.large
       ImageId: !Ref AmiAmazonLinux
       KeyName: !Ref KeyName
       SubnetId: !Ref PublicSubnet
