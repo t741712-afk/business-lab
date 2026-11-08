@@ -35,6 +35,16 @@ ssh -i <keypair>.pem -J ec2-user@<BastionIp> ec2-user@<ip>    # Amazon Linux hos
 ssh -i <keypair>.pem -J ec2-user@<BastionIp> ubuntu@<ip>      # Ubuntu hosts
 ```
 
+### Private access connector (SSH)
+
+The Zero Trust connector (`ztsa-private-connector`) is not a Linux host: it runs a management console. Reach it through the bastion and use the console prompt that opens:
+
+```bash
+ssh -i <keypair>.pem -o ProxyCommand="ssh -i <keypair>.pem -W %h:%p ec2-user@<BastionIp>" admin@10.0.5.16
+```
+
+Do not change connector settings without the lab coordinator's approval.
+
 ### Windows hosts (RDP)
 
 RDP needs a tunnel through the bastion. Open it from your computer and leave it running while you work:
@@ -162,6 +172,7 @@ aws cloudformation describe-stacks \
 | `ops-siem-elk` | 10.0.5.13 | Ubuntu | Log management (Elasticsearch, Kibana) |
 | `ops-nfs-backup` | 10.0.5.14 | Amazon Linux | Backup storage (NFS) |
 | `ops-jenkins-ci` | 10.0.5.15 | Ubuntu | CI server (Jenkins) |
+| `ztsa-private-connector` | 10.0.5.16 | Amazon Linux | Private access connector (Trend Micro Zero Trust Secure Access) |
 
 ---
 

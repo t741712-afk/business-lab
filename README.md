@@ -45,7 +45,7 @@ VPC 10.0.0.0/16  (la crea y exporta el stack DMZ; MZ la importa)
 │   · web-wordpress(.32) · web-apache-1-public(.33) · web-apache-2-public(.34)
 │   · web-iis(.35) · monitor(.40) · servicegateway(.75)
 │
-└─ MZ · 5 subredes privadas (salida vía NAT) ── 24 instancias
+└─ MZ · 5 subredes privadas (salida vía NAT) ── 25 instancias
     │
     ├─ App    10.0.1.0/24 : app-tomcat(.11) app-node(.12) app-dotnet(.13)
     │                        app-django(.14) app-php-fpm(.15) app-docker(.16)
@@ -59,7 +59,7 @@ VPC 10.0.0.0/16  (la crea y exporta el stack DMZ; MZ la importa)
     ├─ Clients 10.0.4.0/24: win-client-1(.11) win-client-2(.12) lin-client(.13)
     │
     └─ Ops    10.0.5.0/24 : ops-dns-ntp(.11) ops-monitor(.12) ops-siem-elk(.13)
-                             ops-nfs-backup(.14) ops-jenkins-ci(.15)
+                             ops-nfs-backup(.14) ops-jenkins-ci(.15) ztsa-connector(.16)
 ```
 
 **Stack PentAGI** (independiente): `pentagi.yaml` crea una VPC propia `10.100.0.0/16` con subred `10.100.0.0/24`.
@@ -92,7 +92,7 @@ Estado según el código de los scripts en `main`:
 
 > `web-apache-1-public` y `web-apache-2-public` usan el mismo script y el mismo código. El balanceador reparte entre `.33` y `.34`.
 
-### MZ (24 instancias)
+### MZ (25 instancias)
 
 | Zona | Nombre | IP | Tipo | Script | Estado |
 |---|---|---|---|---|---|
@@ -120,6 +120,7 @@ Estado según el código de los scripts en `main`:
 | Ops | ops-siem-elk | 10.0.5.13 | c5.2xlarge | `ops-elk.sh` | Parcial |
 | Ops | ops-nfs-backup | 10.0.5.14 | t3.small | `ops-nfs.sh` | Vulnerable |
 | Ops | ops-jenkins-ci | 10.0.5.15 | t3.medium | `ops-jenkins.sh` | Vulnerable |
+| Ops | ztsa-private-connector-equipo1 | 10.0.5.16 | c5.2xlarge | — (AMI del conector, sin script) | Conector privado ZTSA de Trend Micro. Sin fallos intencionados |
 
 > `win-client-1` y `win-client-2` usan el mismo script (`client-win.ps1`).
 
@@ -492,7 +493,7 @@ Al borrar el stack, las instancias y sus datos desaparecen. Las cuentas de AD y 
 
 ## Notas y límites
 
-* El entorno tiene **33 instancias**: 9 en la DMZ, 24 en la MZ, más el host de PentAGI.
+* El entorno tiene **34 instancias**: 9 en la DMZ, 25 en la MZ (incluido el conector ZTSA), más el host de PentAGI.
 * Hay cuatro instancias `c5.2xlarge` (`app-docker`, `ops-siem-elk`, `servicegateway` y el host de PentAGI, según su plantilla). Suman mucho consumo de vCPU: calcúlalo a partir de la tabla de inventario y verifica la cuota On-Demand y el coste antes de desplegar.
 * Las estaciones Windows usan **Windows Server 2022**, porque Windows 10/11 exige imágenes Marketplace, bloqueadas en PX.
 * **Visibilidad del repositorio:** el repositorio se pondrá privado antes de empezar el juego. Las instancias leen los scripts desde GitHub con URLs `raw`, así que mientras sea público, cualquiera puede leer los fallos. **Las soluciones y las cadenas de ataque no van en este repositorio**: están en un documento privado para el instructor.
