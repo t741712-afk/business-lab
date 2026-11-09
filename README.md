@@ -140,7 +140,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | web-wordpress (DMZ) | Administrador con contraseña débil y `WP_DEBUG_LOG` accesible desde la web | `scripts/web-wordpress.sh` |
 | web-iis (DMZ) | Frontal corporativo ficticio con: portal de subida sin validar que ejecuta cualquier `.aspx` (enlazado desde Careers), `trace.axd` accesible desde cualquier IP, y `/backup/` con listado y `web.config.bak` con la cadena de conexión a `TAI_CRM` | `scripts/web-iis.ps1` |
 | app-tomcat (App) | Tomcat Manager con usuario de despliegue débil, accesible desde cualquier IP | `scripts/app-tomcat.sh` |
-| app-php-fpm (App) | SQL injection en el buscador de pedidos (concatenación directa de `q`) | `scripts/app-php-fpm.sh` |
+| app-php-fpm (App) | SQL injection en el buscador de pedidos (concatenación directa de `q`). XSS almacenado: las notas internas de pedido se muestran sin escapar en el listado | `scripts/app-php-fpm.sh` |
 | app-dotnet (App) | Servicio clínico ficticio con: página de diagnóstico que ejecuta comandos (`diagnostics.aspx?cmd=`), IDOR en `report.aspx?id=` (los informes 2 y 3 no aparecen en la lista), clave de API del panel en el JavaScript de `status.aspx`, errores detallados (`customErrors` desactivado, `debug` activo) y, en el informe 3, la credencial de `svc-helpdesk` | `scripts/app-dotnet.ps1` |
 | intranet (Corp) | Directorio `/backup` con listado activado y fichero con configuración de BBDD | `scripts/intranet.sh` |
 
