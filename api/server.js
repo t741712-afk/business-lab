@@ -16,6 +16,32 @@ let molecularSequences = [];
 const types = ["Immunotherapy", "Pathogen_Twin", "Molecular_Synth", "Genomic_Variant", "Neuro_Model"];
 const statuses = ["Verified", "In_Progress", "Simulated", "Under_Review"];
 
+// Secuencias restringidas: no aparecen en el listado general, pero la ruta por identificador las devuelve
+// sin comprobar permisos (IDOR). Ver GET /api/sequences/:id
+const restrictedSequences = [
+  {
+    id: 'TAI-101',
+    name: 'Berlin_Immunotherapy_Pilot_Partner_A',
+    status: 'Restricted',
+    match_rate: '99.97%',
+    notes: 'Partner access only. Contract reference CTR-2026-0147. Do not export.'
+  },
+  {
+    id: 'TAI-102',
+    name: 'Pathogen_Twin_Outbreak_Model_B',
+    status: 'Restricted',
+    match_rate: '98.41%',
+    notes: 'Biosafety level 3 review pending. Results not for distribution.'
+  },
+  {
+    id: 'TAI-103',
+    name: 'Ops_Handover_Deploy',
+    status: 'Restricted',
+    match_rate: '100.00%',
+    notes: 'Deployment handover. Application server manager: http://10.0.1.11:8080/manager/html, user deployer, password Deploy#2026.'
+  }
+];
+
 for (let i = 1; i <= 50; i++) {
   const type = types[i % types.length];
   const status = statuses[i % statuses.length];
@@ -46,6 +72,19 @@ const server = http.createServer((req, res) => {
   // 3. ENDPOINT DINÁMICO: LISTAR SECUENCIAS (GET /api/sequences)
   if ((req.url === '/sequences' || req.url === '/api/sequences' || req.url === '/api/sequences/') && req.method === 'GET') {
     return res.end(JSON.stringify(molecularSequences, null, 2));
+  }
+
+  // 3b. DETALLE POR IDENTIFICADOR (GET /api/sequences/:id)
+  // VULNERABILIDAD (IDOR): busca también en las secuencias restringidas y no comprueba quién pide el dato
+  const detail = req.url.split('?')[0].match(/^\/api\/sequences\/(TAI-\d{3})\/?$/);
+  if (detail && req.method === 'GET') {
+    const id = detail[1];
+    const found = molecularSequences.find(x => x.id === id) || restrictedSequences.find(x => x.id === id);
+    if (!found) {
+      res.statusCode = 404;
+      return res.end(JSON.stringify({ error: 'Not found', id: id }));
+    }
+    return res.end(JSON.stringify(found, null, 2));
   }
 
   // 4. ENDPOINT DINÁMICO: CREAR SECUENCIA (POST /api/sequences)
