@@ -104,7 +104,7 @@ Estado según el código de los scripts en `main`:
 | App | app-docker | 10.0.1.16 | c5.2xlarge | `app-docker.sh` | Parcial |
 | Datos | db-mysql | 10.0.2.11 | t3.medium | `db-mysql.sh` | Parcial |
 | Datos | db-postgres | 10.0.2.12 | t3.medium | `db-postgres.sh` | Vulnerable |
-| Datos | db-mssql | 10.0.2.13 | t3.large | `db-mssql.ps1` | Parcial |
+| Datos | db-mssql | 10.0.2.13 | t3.large | `db-mssql.ps1` | Vulnerable |
 | Datos | db-mongo-redis | 10.0.2.14 | t3.medium | `db-mongo-redis.sh` | Vulnerable |
 | Corp | dc1 | 10.0.3.10 | t3.medium | `dc1.ps1` | Vulnerable |
 | Corp | dc2 | 10.0.3.11 | t3.medium | `dc2.ps1` | Sin fallos propios (réplica: hereda las debilidades de dc1) |
@@ -161,7 +161,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | ops-dns-ntp (Ops) | BIND con transferencia de zona abierta (AXFR) de `tai-internal.local` | `scripts/ops-dns-ntp.sh` |
 | ops-jenkins-ci (Ops) | Imagen vulnerable de DockerLabs | `scripts/ops-jenkins.sh` |
 | db-mysql / db-postgres (Datos) | Escuchan en todas las interfaces con el usuario `app` | `scripts/db-mysql.sh`, `scripts/db-postgres.sh` |
-| db-mssql (Datos) | Autenticación SQL con `sa` y puerto 1433 abierto | `scripts/db-mssql.ps1` |
+| db-mssql (Datos) | Autenticación SQL con `sa` y puerto 1433 abierto. `xp_cmdshell` habilitado: ejecución de comandos del sistema con la cuenta del servicio de SQL Server | `scripts/db-mssql.ps1` |
 
 ### Información sensible y configuración
 
@@ -454,7 +454,8 @@ Commits sobre `main` desde la revisión inicial, de más antiguo a más reciente
 | `1012e2e` | web-iis: `trace.axd`, `/backup/` y enlace al portal desde Careers |
 | `34a1da8` | app-dotnet: frontal de servicios clínicos con IDOR, clave de API y errores detallados |
 | `e8af343`, `ba28a8e` | `svc-helpdesk` en los puestos Windows y su credencial en el informe 3 |
-| (pendiente de commit) | `db-mssql`: base `TAI_CRM` con la tabla `dbo.partners` de ejemplo |
+| `e9b0ddc` | `db-mssql`: base `TAI_CRM` con la tabla `dbo.partners` de ejemplo |
+| `cd57b83` | `db-mssql`: `xp_cmdshell` habilitado para `sa` |
 
 ---
 
