@@ -109,7 +109,7 @@ Estado según el código de los scripts en `main`:
 | Corp | dc1 | 10.0.3.10 | t3.medium | `dc1.ps1` | Vulnerable |
 | Corp | dc2 | 10.0.3.11 | t3.medium | `dc2.ps1` | Sin fallos propios (réplica: hereda las debilidades de dc1) |
 | Corp | fileserver | 10.0.3.12 | t3.medium | `file-smb.ps1` | Vulnerable |
-| Corp | mailserver | 10.0.3.13 | t3.small | `mail-postfix.sh` | Parcial |
+| Corp | mailserver | 10.0.3.13 | t3.small | `mail-postfix.sh` | Vulnerable |
 | Corp | intranet | 10.0.3.14 | t3.small | `intranet.sh` | Vulnerable |
 | Corp | linux-member | 10.0.3.15 | t3.small | `linux-domain-join.sh` | Vulnerable |
 | Clients | win-client-1 | 10.0.4.11 | t3.medium | `client-win.ps1` | Vulnerable |
@@ -171,7 +171,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | app-django (App) | `ALLOWED_HOSTS = ["*"]`, `/admin/` expuesto, `DEBUG` sin desactivar y superusuario `admin` con contraseña por defecto | `scripts/app-django.sh` |
 | app-node (App) | `POST /sequences` sin autenticación y consola `/api/docs` expuesta | `api/server.js` |
 | web-nginx-1-intranet (DMZ) | Login LDAP sin TLS (credenciales en claro). El login revela si un usuario existe: busca la cuenta con `ops-svc` (contraseña en el código) y después valida la contraseña, con un mensaje distinto para cada caso. Usa los dos DC | `nginx/index.php` |
-| mailserver (Corp) | Usuarios de correo con contraseña compartida, IMAP/POP3 sin TLS | `scripts/mail-postfix.sh` |
+| mailserver (Corp) | Usuarios de correo con contraseña compartida, IMAP/POP3 sin TLS. `VRFY` activo (enumeración de cuentas). El buzón de `jgarcia` contiene un correo con la cuenta `svc-backup` y su contraseña | `scripts/mail-postfix.sh` |
 | linux-member (Corp) | Contraseña de `DomainJoin` en el script de unión, y cuenta `itsupport` con `sudo` sin contraseña para un editor | `scripts/linux-domain-join.sh` |
 | db-postgres (Datos) | Superusuario `postgres` con contraseña débil y acceso sin contraseña desde la subred de clientes | `scripts/db-postgres.sh` |
 | lin-client (Clients) | `labuser` con sudo y xrdp expuesto. Tarea de sincronización (`/etc/cron.d/tai-sync`) que ejecuta como root cada 2 minutos un script (`/opt/tai-sync/sync.sh`) que `labuser` puede modificar | `scripts/client-linux.sh` |
