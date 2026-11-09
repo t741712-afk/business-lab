@@ -58,6 +58,9 @@ try {
       } finally { $conn.Close() }
     }
     Invoke-TaiSql 'master' "IF DB_ID('TAI_CRM') IS NULL CREATE DATABASE TAI_CRM;"
+    # VULNERABILIDAD (ejecucion de comandos): xp_cmdshell habilitado. Quien entre como sa puede ejecutar
+    # comandos del sistema operativo con la cuenta del servicio de SQL Server
+    Invoke-TaiSql 'master' "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;"
     Invoke-TaiSql 'TAI_CRM' @"
 IF OBJECT_ID('dbo.partners', 'U') IS NULL
   CREATE TABLE dbo.partners (
