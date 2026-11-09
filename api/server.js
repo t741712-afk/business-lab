@@ -1,5 +1,15 @@
 const http = require('http');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
+
+// La consola se lee una vez al arrancar. Si falta el fichero, el servidor sigue funcionando
+let docsPage;
+try {
+  docsPage = fs.readFileSync(path.join(__dirname, 'docs.html'), 'utf8');
+} catch (err) {
+  docsPage = '<!doctype html><title>API console</title><p>docs.html no encontrado.</p>';
+}
 
 // Dataset automatizado de 50 secuencias moleculares detalladas para Laboratories Corporation TAI
 let molecularSequences = [];
@@ -27,100 +37,10 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ status: 'ok' }));
   }
   
-  // 2. CONSOLA DE INTERACCION CORPORATIVA (Endpoint: /api/docs) - 100% Autónoma y Local
+  // 2. CONSOLA DE INTERACCION (Endpoint: /api/docs). La pagina vive en docs.html, junto a este fichero
   if (req.url === '/docs' || req.url === '/api/docs' || req.url === '/api/docs/') {
-    res.setHeader('Content-Type', 'text/html');
-    return res.end(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <title>TAI Labs | Interactive Console</title>
-        <style>
-          body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0B0F19; color: #F3F4F6; margin: 0; padding: 2rem; }
-          .container { max-width: 900px; margin: 0 auto; }
-          h1 { font-size: 1.8rem; font-weight: 800; border-bottom: 1px solid #1F2937; padding-bottom: 1rem; }
-          h1 span { color: #06B6D4; }
-          .endpoint-block { background: #111827; border: 1px solid #1F2937; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; }
-          .badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-weight: bold; font-family: monospace; font-size: 0.85rem; margin-right: 0.5rem; }
-          .get { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid #3B82F6; }
-          .post { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid #10B981; }
-          .path { font-family: monospace; font-weight: bold; color: #E5E7EB; font-size: 1rem; }
-          .desc { color: #9CA3AF; margin: 0.5rem 0 1rem; font-size: 0.95rem; }
-          button { background: #2563EB; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; }
-          button:hover { background: #1D4ED8; }
-          .form-input { background: #090D16; border: 1px solid #1F2937; color: white; padding: 0.5rem; border-radius: 0.375rem; width: 250px; margin-right: 0.5rem; }
-          pre { background: #090D16; border: 1px solid #1F2937; padding: 1rem; border-radius: 0.375rem; color: #34D399; font-family: monospace; overflow-x: auto; max-height: 250px; margin-top: 1rem; display: none; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>TAI LABORATORIES | <span>AI Engine Interactive Console</span></h1>
-          <p style="color: #9CA3AF;">Berlin HQ Subsystem Routing Interface - Local Autonomous Mode</p>
-          
-          <div class="endpoint-block">
-            <span class="badge get">GET</span> <span class="path">/api/</span>
-            <div class="desc">Obtener estado general del motor de Inteligencia Artificial molecular.</div>
-            <button onclick="runFetch('/api/', 'res-root')">Execute Request</button>
-            <pre id="res-root"></pre>
-          </div>
-
-          <div class="endpoint-block">
-            <span class="badge get">GET</span> <span class="path">/api/sequences/</span>
-            <div class="desc">Listar el dataset completo de las 50 secuencias moleculares analizadas.</div>
-            <button onclick="runFetch('/api/sequences', 'res-seq')">Execute Request</button>
-            <pre id="res-seq"></pre>
-          </div>
-
-          <div class="endpoint-block">
-            <span class="badge post">POST</span> <span class="path">/api/sequences/</span>
-            <div class="desc">Inyectar una nueva simulacion molecular interactiva en la memoria RAM del cl&uacute;ster.</div>
-            <input type="text" id="seq-name" class="form-input" placeholder="e.g., SARS-CoV-3_Twin">
-            <button onclick="runPost()" style="background:#10B981;">Submit Simulation</button>
-            <pre id="res-post"></pre>
-          </div>
-        </div>
-
-        <script>
-          function runFetch(url, elementId) {
-            const pre = document.getElementById(elementId);
-            fetch(url)
-              .then(res => res.json())
-              .then(data => {
-                pre.innerText = JSON.stringify(data, null, 2);
-                pre.style.display = 'block';
-              })
-              .catch(err => {
-                pre.innerText = 'Error executing request: ' + err;
-                pre.style.display = 'block';
-              });
-          }
-
-          function runPost() {
-            const nameInput = document.getElementById('seq-name');
-            const pre = document.getElementById('res-post');
-            if(!nameInput.value) { alert('Please enter a sequence name'); return; }
-            
-            fetch('/api/sequences', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: nameInput.value })
-            })
-            .then(res => res.json())
-            .then(data => {
-              pre.innerText = JSON.stringify(data, null, 2);
-              pre.style.display = 'block';
-              nameInput.value = '';
-            })
-            .catch(err => {
-              pre.innerText = 'Error submitting sequence: ' + err;
-              pre.style.display = 'block';
-            });
-          }
-        </script>
-      </body>
-      </html>
-    `);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.end(docsPage);
   }
 
   // 3. ENDPOINT DINÁMICO: LISTAR SECUENCIAS (GET /api/sequences)

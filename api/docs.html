@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Console | Laboratories Corporation TAI</title>
+<style>
+:root{--bg:#070B14;--panel:#0F172A;--border:#1E293B;--cyan:#06B6D4;--blue:#2563EB;--green:#10B981;--text:#F3F4F6;--muted:#94A3B8}
+body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:1rem 2rem;background:rgba(15,23,42,.85);border-bottom:1px solid var(--border)}
+header h1{margin:0;font-size:1.2rem;font-weight:800;letter-spacing:1px}
+header h1 span{color:var(--cyan)}
+nav a{color:var(--muted);text-decoration:none;margin-left:1.2rem;font-weight:600;font-size:.9rem}
+nav a:hover,nav a.active{color:var(--text)}
+main{max-width:1000px;margin:3rem auto;padding:0 2rem}
+h2{font-size:2rem;margin:0 0 .5rem}
+p{color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin-bottom:1.5rem}
+.card h3{margin:0 0 .5rem;color:var(--cyan)}
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:4px;font-weight:700;font-family:monospace;font-size:.85rem;margin-right:.6rem;border:1px solid}
+.get{background:rgba(59,130,246,.2);color:#60A5FA;border-color:var(--blue)}
+.post{background:rgba(16,185,129,.2);color:#34D399;border-color:var(--green)}
+.path{font-family:monospace;font-weight:700;color:var(--text)}
+.btn{display:inline-block;background:var(--blue);color:#fff;border:none;padding:.6rem 1.2rem;border-radius:6px;font-weight:600;cursor:pointer;margin-top:1rem}
+.btn:hover{background:#1D4ED8}
+.btn.green{background:var(--green)}
+input[type=text]{background:#090D16;border:1px solid var(--border);color:var(--text);padding:.55rem .7rem;border-radius:6px;width:260px;margin-top:1rem;margin-right:.5rem}
+pre{background:#090D16;border:1px solid var(--border);padding:1rem;border-radius:6px;color:#34D399;font-family:monospace;overflow-x:auto;max-height:280px;margin-top:1rem;display:none}
+footer{border-top:1px solid var(--border);color:var(--muted);text-align:center;padding:2rem;font-size:.85rem;margin-top:4rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>LABORATORIES CORPORATION <span>TAI</span></h1>
+  <nav>
+    <a href="/api/">Status</a>
+    <a class="active" href="/api/docs">API console</a>
+    <a href="/api/sequences">Sequences</a>
+  </nav>
+</header>
+<main>
+  <h2>API console</h2>
+  <p>Interactive reference for the molecular synthesis engine. Run the requests below from your browser.</p>
+
+  <div class="card">
+    <span class="badge get">GET</span><span class="path">/api/</span>
+    <h3>Engine status</h3>
+    <p>General state of the molecular synthesis engine.</p>
+    <button class="btn" onclick="runGet('/api/', 'res-root')">Run request</button>
+    <pre id="res-root"></pre>
+  </div>
+
+  <div class="card">
+    <span class="badge get">GET</span><span class="path">/api/sequences</span>
+    <h3>Sequence dataset</h3>
+    <p>Full list of the 50 analysed molecular sequences.</p>
+    <button class="btn" onclick="runGet('/api/sequences', 'res-seq')">Run request</button>
+    <pre id="res-seq"></pre>
+  </div>
+
+  <div class="card">
+    <span class="badge post">POST</span><span class="path">/api/sequences</span>
+    <h3>Submit a simulation</h3>
+    <p>Add a new simulation to the cluster memory.</p>
+    <input type="text" id="seq-name" placeholder="e.g. SARS-CoV-3_Twin">
+    <button class="btn green" onclick="runPost()">Submit simulation</button>
+    <pre id="res-post"></pre>
+  </div>
+</main>
+<footer>&copy; 2026 Laboratories Corporation TAI. Berlin Global HQ.</footer>
+
+<script>
+  function show(id, text) {
+    const pre = document.getElementById(id);
+    pre.innerText = text;
+    pre.style.display = 'block';
+  }
+
+  function runGet(url, id) {
+    fetch(url)
+      .then(r => r.json())
+      .then(d => show(id, JSON.stringify(d, null, 2)))
+      .catch(e => show(id, 'Request failed: ' + e));
+  }
+
+  function runPost() {
+    const input = document.getElementById('seq-name');
+    if (!input.value) { alert('Enter a simulation name first.'); return; }
+    fetch('/api/sequences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: input.value })
+    })
+      .then(r => r.json())
+      .then(d => { show('res-post', JSON.stringify(d, null, 2)); input.value = ''; })
+      .catch(e => show('res-post', 'Submission failed: ' + e));
+  }
+</script>
+</body>
+</html>

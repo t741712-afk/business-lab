@@ -14,6 +14,7 @@ mkdir -p /opt/api
 
 echo "==> Descargando server.js limpio desde GitHub en tiempo real..."
 curl -sS -L -o /opt/api/server.js "${REPO_BASE_URL}/server.js?v=$(date +%s)"
+curl -sS -L -o /opt/api/docs.html "${REPO_BASE_URL}/docs.html?v=$(date +%s)"
 
 echo "==> Creando el archivo de servicio systemd para control y persistencia..."
 cat > /etc/systemd/system/corp-api.service <<'EOF'
