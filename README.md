@@ -114,7 +114,7 @@ Estado según el código de los scripts en `main`:
 | Corp | linux-member | 10.0.3.15 | t3.small | `linux-domain-join.sh` | Vulnerable |
 | Clients | win-client-1 | 10.0.4.11 | t3.medium | `client-win.ps1` | Vulnerable |
 | Clients | win-client-2 | 10.0.4.12 | t3.medium | `client-win.ps1` | Vulnerable |
-| Clients | lin-client | 10.0.4.13 | t3.small | `client-linux.sh` | Parcial |
+| Clients | lin-client | 10.0.4.13 | t3.small | `client-linux.sh` | Vulnerable |
 | Ops | ops-dns-ntp | 10.0.5.11 | t3.micro | `ops-dns-ntp.sh` | Vulnerable |
 | Ops | ops-monitor | 10.0.5.12 | t3.medium | `ops-monitor.sh` | Parcial (credenciales por defecto, Prometheus sin autenticación) |
 | Ops | ops-siem-elk | 10.0.5.13 | c5.2xlarge | `ops-elk.sh` | Parcial |
@@ -174,7 +174,7 @@ Los scripts marcan cada fallo con un comentario `VULNERABILIDAD`.
 | mailserver (Corp) | Usuarios de correo con contraseña compartida, IMAP/POP3 sin TLS | `scripts/mail-postfix.sh` |
 | linux-member (Corp) | Contraseña de `DomainJoin` en el script de unión, y cuenta `itsupport` con `sudo` sin contraseña para un editor | `scripts/linux-domain-join.sh` |
 | db-postgres (Datos) | Superusuario `postgres` con contraseña débil y acceso sin contraseña desde la subred de clientes | `scripts/db-postgres.sh` |
-| lin-client (Clients) | `labuser` con sudo y xrdp expuesto | `scripts/client-linux.sh` |
+| lin-client (Clients) | `labuser` con sudo y xrdp expuesto. Tarea de sincronización (`/etc/cron.d/tai-sync`) que ejecuta como root cada 2 minutos un script (`/opt/tai-sync/sync.sh`) que `labuser` puede modificar | `scripts/client-linux.sh` |
 | ops-siem-elk (Ops) | `xpack.security.enabled=false` | `scripts/ops-elk.sh` |
 
 ---
