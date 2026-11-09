@@ -652,7 +652,13 @@ footer{text-align:center;padding:22px;color:#8593a5;font-size:12px}
                             <div class="customer"><?= h($o['customer_name']) ?></div>
                             <div class="small"><?= h($o['customer_email']) ?></div>
                         </td>
-                        <td><?= h($o['description']) ?></td>
+                        <td>
+                            <?= h($o['description']) ?>
+                            <?php if ($o['notes'] !== ''): ?>
+                                <!-- VULNERABILIDAD (XSS almacenado): las notas internas se muestran sin escapar -->
+                                <div class="small note">Notes: <?= $o['notes'] ?></div>
+                            <?php endif; ?>
+                        </td>
                         <td><?= h($o['order_date']) ?></td>
                         <td><?= h($o['due_date'] ?? '—') ?></td>
                         <td><?= h(number_format((float)$o['amount'], 2)) ?></td>
